@@ -39,9 +39,23 @@ export const useChatStore = create<ChatState>((set) => ({
 
   addMessage: (message) =>
     set((state) => {
+      // 1. Prevent duplicate messages by ID
       if (state.messages.some((m) => m._id === message._id)) {
         return state;
       }
+      // 2. Replace temp optimistic message if real saved message arrives
+      const senderIdStr = typeof message.senderId === 'object' ? message.senderId._id : message.senderId;
+      const tempIndex = state.messages.findIndex((m) => {
+        const mSenderIdStr = typeof m.senderId === 'object' ? m.senderId._id : m.senderId;
+        return m._id.startsWith('temp-') && mSenderIdStr === senderIdStr && m.content === message.content;
+      });
+
+      if (tempIndex !== -1) {
+        const updated = [...state.messages];
+        updated[tempIndex] = message;
+        return { messages: updated };
+      }
+
       return { messages: [...state.messages, message] };
     }),
 
