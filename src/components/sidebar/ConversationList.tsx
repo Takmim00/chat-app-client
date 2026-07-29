@@ -25,7 +25,7 @@ export const ConversationList: React.FC = () => {
   const loadFriends = useCallback(async () => {
     try {
       setIsLoading(true);
-      const data = await fetchApi('/user/friends');
+      const data = await fetchApi('/friend/list');
       setFriends(data.friends || []);
     } catch (err) {
       console.error('Failed to load friends', err);
@@ -37,7 +37,7 @@ export const ConversationList: React.FC = () => {
   const loadGroups = useCallback(async () => {
     try {
       setIsLoading(true);
-      const data = await fetchApi('/group/user-groups');
+      const data = await fetchApi('/group/list');
       setGroups(data.groups || []);
     } catch (err) {
       console.error('Failed to load groups', err);
