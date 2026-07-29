@@ -3,7 +3,6 @@ import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useChatStore } from '@/store/useChatStore';
 import { useCallStore } from '@/store/useCallStore';
-import { useGroupStore } from '@/store/useGroupStore';
 import { toast } from 'sonner';
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5000';
@@ -14,8 +13,8 @@ export const getSocket = (): Socket | null => socket;
 
 export const useSocket = () => {
   const { user, token } = useAuthStore();
-  const { addMessage, updateMessage, setTyping } = useChatStore();
-  const { receiveCall, endCall, callStatus } = useCallStore();
+  const { addMessage, setTyping } = useChatStore();
+  const { receiveCall, endCall } = useCallStore();
 
   useEffect(() => {
     if (!user || !token) {
@@ -26,66 +25,77 @@ export const useSocket = () => {
       return;
     }
 
-    socket = io(SOCKET_URL, {
-      auth: { token },
-      transports: ['websocket', 'polling'],
-    });
+    // Reuse existing active socket if connected with same token
+    if (!socket || !socket.connected) {
+      socket = io(SOCKET_URL, {
+        auth: { token },
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionAttempts: 20,
+        reconnectionDelay: 1000,
+      });
 
-    socket.on('connect', () => {
-      console.log('[Socket] Real-time connected as user:', user._id);
-    });
+      socket.on('connect', () => {
+        console.log('[Socket Persistent] Real-time connected as user:', user._id);
+      });
+    }
 
-    // 1-to-1 Direct Message Receive
-    socket.on('message:receive', (message) => {
+    // Direct Message Receive
+    const handleDirectMessage = (message: any) => {
       console.log('[Socket Direct Message Received]:', message);
       addMessage(message);
       toast.info(`New message from ${message.senderId?.name || 'Friend'}`);
-    });
+    };
 
     // Group Message Receive
-    socket.on('group:message-receive', ({ groupId, message }) => {
-      console.log('[Socket Group Message Received]:', groupId, message);
+    const handleGroupMessage = ({ message }: any) => {
+      console.log('[Socket Group Message Received]:', message);
       addMessage(message);
       toast.info(`New group message`);
-    });
+    };
 
     // Typing Indicators
-    socket.on('typing:start', ({ senderId }) => {
-      setTyping(senderId, true);
-    });
-
-    socket.on('typing:stop', ({ senderId }) => {
-      setTyping(senderId, false);
-    });
-
-    socket.on('group:typing', ({ userId, isTyping }) => {
-      setTyping(userId, isTyping);
-    });
+    const handleTypingStart = ({ senderId }: any) => setTyping(senderId, true);
+    const handleTypingStop = ({ senderId }: any) => setTyping(senderId, false);
+    const handleGroupTyping = ({ userId, isTyping }: any) => setTyping(userId, isTyping);
 
     // 1-to-1 Calling Events
-    socket.on('call:incoming', ({ callerInfo }) => {
-      if (callStatus === 'idle') {
-        receiveCall(callerInfo);
-      }
-    });
+    const handleIncomingCall = ({ callerInfo }: any) => {
+      receiveCall(callerInfo);
+    };
 
-    socket.on('call:ended', () => {
+    const handleCallEnded = () => {
       endCall();
       toast.info('Call ended by partner.');
-    });
+    };
 
-    socket.on('call:rejected', () => {
+    const handleCallRejected = () => {
       endCall();
       toast.warning('Call was rejected.');
-    });
+    };
+
+    socket.on('message:receive', handleDirectMessage);
+    socket.on('group:message-receive', handleGroupMessage);
+    socket.on('typing:start', handleTypingStart);
+    socket.on('typing:stop', handleTypingStop);
+    socket.on('group:typing', handleGroupTyping);
+    socket.on('call:incoming', handleIncomingCall);
+    socket.on('call:ended', handleCallEnded);
+    socket.on('call:rejected', handleCallRejected);
 
     return () => {
       if (socket) {
-        socket.disconnect();
-        socket = null;
+        socket.off('message:receive', handleDirectMessage);
+        socket.off('group:message-receive', handleGroupMessage);
+        socket.off('typing:start', handleTypingStart);
+        socket.off('typing:stop', handleTypingStop);
+        socket.off('group:typing', handleGroupTyping);
+        socket.off('call:incoming', handleIncomingCall);
+        socket.off('call:ended', handleCallEnded);
+        socket.off('call:rejected', handleCallRejected);
       }
     };
-  }, [user, token, addMessage, setTyping, receiveCall, endCall, callStatus]);
+  }, [user?._id, token, addMessage, setTyping, receiveCall, endCall]);
 
   return { socket };
 };
