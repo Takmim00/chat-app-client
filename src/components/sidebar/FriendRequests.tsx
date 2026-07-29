@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { fetchApi } from '@/lib/api';
 import { FriendRequest } from '@/types';
 import { Check, X, UserCheck, Clock } from 'lucide-react';
@@ -10,7 +10,7 @@ export const FriendRequests: React.FC = () => {
   const [requests, setRequests] = useState<FriendRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadRequests = async () => {
+  const loadRequests = useCallback(async () => {
     try {
       setIsLoading(true);
       const data = await fetchApi('/friend/requests');
@@ -20,11 +20,22 @@ export const FriendRequests: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadRequests();
-  }, []);
+  }, [loadRequests]);
+
+  // Listen for real-time incoming friend requests
+  useEffect(() => {
+    const handleRequestsUpdated = () => {
+      loadRequests();
+    };
+    window.addEventListener('friend-requests:updated', handleRequestsUpdated);
+    return () => {
+      window.removeEventListener('friend-requests:updated', handleRequestsUpdated);
+    };
+  }, [loadRequests]);
 
   const handleAccept = async (requestId: string) => {
     try {
@@ -32,8 +43,9 @@ export const FriendRequests: React.FC = () => {
         method: 'POST',
         body: JSON.stringify({ requestId }),
       });
-      toast.success('Friend request accepted!');
+      toast.success('Friend request accepted! Friend added to your chat list.');
       setRequests((prev) => prev.filter((r) => r._id !== requestId));
+      window.dispatchEvent(new Event('friends:updated'));
     } catch (err: any) {
       toast.error(err.message || 'Failed to accept request.');
     }
@@ -77,7 +89,7 @@ export const FriendRequests: React.FC = () => {
                 className="p-3.5 bg-slate-800/80 border border-slate-700/60 rounded-2xl space-y-3"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-indigo-600 font-bold text-white flex items-center justify-center overflow-hidden">
+                  <div className="w-10 h-10 rounded-full bg-indigo-600 font-bold text-white flex items-center justify-center overflow-hidden shrink-0">
                     {sender.profilePic ? (
                       <img src={sender.profilePic} alt={sender.name} className="w-full h-full object-cover" />
                     ) : (
