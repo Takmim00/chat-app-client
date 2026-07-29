@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useChatStore } from '@/store/useChatStore';
 import { useGroupStore } from '@/store/useGroupStore';
 import { fetchApi } from '@/lib/api';
@@ -22,37 +22,49 @@ export const ConversationList: React.FC = () => {
   const [searchFilter, setSearchFilter] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
+  const loadFriends = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const data = await fetchApi('/user/friends');
+      setFriends(data.friends || []);
+    } catch (err) {
+      console.error('Failed to load friends', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const loadGroups = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const data = await fetchApi('/group/user-groups');
+      setGroups(data.groups || []);
+    } catch (err) {
+      console.error('Failed to load groups', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [setGroups]);
+
   useEffect(() => {
-    const loadFriends = async () => {
-      try {
-        setIsLoading(true);
-        const data = await fetchApi('/user/friends');
-        setFriends(data.friends || []);
-      } catch (err) {
-        console.error('Failed to load friends', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    const loadGroups = async () => {
-      try {
-        setIsLoading(true);
-        const data = await fetchApi('/group/user-groups');
-        setGroups(data.groups || []);
-      } catch (err) {
-        console.error('Failed to load groups', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     if (activeTab === 'chats') {
       loadFriends();
     } else if (activeTab === 'groups') {
       loadGroups();
     }
-  }, [activeTab, setGroups]);
+  }, [activeTab, loadFriends, loadGroups]);
+
+  // Listen for real-time friend additions
+  useEffect(() => {
+    const handleFriendsUpdated = () => {
+      loadFriends();
+    };
+
+    window.addEventListener('friends:updated', handleFriendsUpdated);
+    return () => {
+      window.removeEventListener('friends:updated', handleFriendsUpdated);
+    };
+  }, [loadFriends]);
 
   const filteredFriends = friends.filter(
     (f) =>

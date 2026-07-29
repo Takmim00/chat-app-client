@@ -54,6 +54,21 @@ export const useSocket = () => {
       toast.info(`New group message`);
     };
 
+    // Friend Real-Time Events
+    const handleFriendAccepted = () => {
+      toast.success('Friend request accepted! Friend added to your chat list.');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('friends:updated'));
+      }
+    };
+
+    const handleFriendRequestReceived = () => {
+      toast.info('You received a new friend request!');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('friend-requests:updated'));
+      }
+    };
+
     // Typing Indicators
     const handleTypingStart = ({ senderId }: any) => setTyping(senderId, true);
     const handleTypingStop = ({ senderId }: any) => setTyping(senderId, false);
@@ -76,6 +91,8 @@ export const useSocket = () => {
 
     socket.on('message:receive', handleDirectMessage);
     socket.on('group:message-receive', handleGroupMessage);
+    socket.on('friend:accepted', handleFriendAccepted);
+    socket.on('friend:request-received', handleFriendRequestReceived);
     socket.on('typing:start', handleTypingStart);
     socket.on('typing:stop', handleTypingStop);
     socket.on('group:typing', handleGroupTyping);
@@ -87,6 +104,8 @@ export const useSocket = () => {
       if (socket) {
         socket.off('message:receive', handleDirectMessage);
         socket.off('group:message-receive', handleGroupMessage);
+        socket.off('friend:accepted', handleFriendAccepted);
+        socket.off('friend:request-received', handleFriendRequestReceived);
         socket.off('typing:start', handleTypingStart);
         socket.off('typing:stop', handleTypingStop);
         socket.off('group:typing', handleGroupTyping);
