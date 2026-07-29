@@ -7,6 +7,7 @@ interface ChatState {
   messages: Message[];
   replyingTo: Message | null;
   typingUsers: Set<string>; // userIds
+  unreadCounts: Record<string, number>; // friendId/groupId -> count
   searchQuery: string;
   isSearchOpen: boolean;
 
@@ -18,6 +19,7 @@ interface ChatState {
   deleteMessage: (messageId: string, deleteForEveryone: boolean, userId: string) => void;
   setReplyingTo: (message: Message | null) => void;
   setTyping: (userId: string, isTyping: boolean) => void;
+  clearUnread: (id: string) => void;
   setSearchQuery: (query: string) => void;
   toggleSearchOpen: () => void;
 }
@@ -28,23 +30,50 @@ export const useChatStore = create<ChatState>((set) => ({
   messages: [],
   replyingTo: null,
   typingUsers: new Set(),
+  unreadCounts: {},
   searchQuery: '',
   isSearchOpen: false,
 
   setActiveTab: (tab) => set({ activeTab: tab }),
 
-  setActiveChatPartner: (user) => set({ activeChatPartner: user, messages: [], replyingTo: null }),
+  setActiveChatPartner: (user) =>
+    set((state) => {
+      const nextUnread = { ...state.unreadCounts };
+      if (user) {
+        delete nextUnread[user._id];
+      }
+      return { activeChatPartner: user, messages: [], replyingTo: null, unreadCounts: nextUnread };
+    }),
 
   setMessages: (messages) => set({ messages }),
 
   addMessage: (message) =>
     set((state) => {
+      const senderIdStr = typeof message.senderId === 'object' ? message.senderId._id : message.senderId;
+
+      // Check if message belongs to current active direct chat partner
+      const isForActiveChat =
+        state.activeChatPartner &&
+        (senderIdStr === state.activeChatPartner._id || message.chatId === state.activeChatPartner._id);
+
+      // If message is for another chat, increment unread count for that conversation without appending to active chat
+      if (!isForActiveChat && senderIdStr) {
+        const conversationId = message.groupId || senderIdStr;
+        const currentCount = state.unreadCounts[conversationId] || 0;
+        return {
+          unreadCounts: {
+            ...state.unreadCounts,
+            [conversationId]: currentCount + 1,
+          },
+        };
+      }
+
       // 1. Prevent duplicate messages by ID
       if (state.messages.some((m) => m._id === message._id)) {
         return state;
       }
+
       // 2. Replace temp optimistic message if real saved message arrives
-      const senderIdStr = typeof message.senderId === 'object' ? message.senderId._id : message.senderId;
       const tempIndex = state.messages.findIndex((m) => {
         const mSenderIdStr = typeof m.senderId === 'object' ? m.senderId._id : m.senderId;
         return m._id.startsWith('temp-') && mSenderIdStr === senderIdStr && m.content === message.content;
@@ -78,6 +107,13 @@ export const useChatStore = create<ChatState>((set) => ({
     })),
 
   setReplyingTo: (message) => set({ replyingTo: message }),
+
+  clearUnread: (id) =>
+    set((state) => {
+      const next = { ...state.unreadCounts };
+      delete next[id];
+      return { unreadCounts: next };
+    }),
 
   setTyping: (userId, isTyping) =>
     set((state) => {

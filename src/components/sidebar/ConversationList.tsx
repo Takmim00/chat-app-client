@@ -1,46 +1,62 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useAuthStore } from '@/store/useAuthStore';
 import { useChatStore } from '@/store/useChatStore';
 import { useGroupStore } from '@/store/useGroupStore';
 import { fetchApi } from '@/lib/api';
-import { User, Group } from '@/types';
-import { Search, MessageSquarePlus, Users } from 'lucide-react';
+import { User } from '@/types';
+import { Search, Users, MessageSquarePlus } from 'lucide-react';
 
 export const ConversationList: React.FC = () => {
-  const { user } = useAuthStore();
-  const { activeTab, activeChatPartner, setActiveChatPartner } = useChatStore();
-  const { groups, setGroups, activeGroup, setActiveGroup } = useGroupStore();
+  const {
+    activeTab,
+    activeChatPartner,
+    setActiveChatPartner,
+    unreadCounts,
+    clearUnread,
+  } = useChatStore();
+
+  const { groups, activeGroup, setActiveGroup, setGroups } = useGroupStore();
 
   const [friends, setFriends] = useState<User[]>([]);
   const [searchFilter, setSearchFilter] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchData = async () => {
+    const loadFriends = async () => {
       try {
         setIsLoading(true);
-        if (activeTab === 'chats') {
-          const data = await fetchApi('/friend/list');
-          setFriends(data.friends || []);
-        } else if (activeTab === 'groups') {
-          const data = await fetchApi('/group/list');
-          setGroups(data.groups || []);
-        }
+        const data = await fetchApi('/user/friends');
+        setFriends(data.friends || []);
       } catch (err) {
-        console.error('Failed to load conversations', err);
+        console.error('Failed to load friends', err);
       } finally {
         setIsLoading(false);
       }
     };
-    fetchData();
+
+    const loadGroups = async () => {
+      try {
+        setIsLoading(true);
+        const data = await fetchApi('/group/user-groups');
+        setGroups(data.groups || []);
+      } catch (err) {
+        console.error('Failed to load groups', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (activeTab === 'chats') {
+      loadFriends();
+    } else if (activeTab === 'groups') {
+      loadGroups();
+    }
   }, [activeTab, setGroups]);
 
   const filteredFriends = friends.filter(
     (f) =>
       f.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
-      f.username.toLowerCase().includes(searchFilter.toLowerCase()) ||
       f.friendId.toLowerCase().includes(searchFilter.toLowerCase())
   );
 
@@ -80,12 +96,15 @@ export const ConversationList: React.FC = () => {
           ) : (
             filteredFriends.map((friend) => {
               const isSelected = activeChatPartner?._id === friend._id;
+              const unread = unreadCounts[friend._id] || 0;
+
               return (
                 <div
                   key={friend._id}
                   onClick={() => {
                     setActiveChatPartner(friend);
                     setActiveGroup(null);
+                    clearUnread(friend._id);
                   }}
                   className={`p-3 rounded-2xl cursor-pointer transition-all flex items-center gap-3 ${
                     isSelected
@@ -93,7 +112,7 @@ export const ConversationList: React.FC = () => {
                       : 'hover:bg-slate-800/60 text-slate-300'
                   }`}
                 >
-                  <div className="relative">
+                  <div className="relative shrink-0">
                     <div className="w-12 h-12 rounded-full bg-slate-700 text-white font-bold flex items-center justify-center overflow-hidden border border-slate-600">
                       {friend.profilePic ? (
                         <img src={friend.profilePic} alt={friend.name} className="w-full h-full object-cover" />
@@ -111,9 +130,16 @@ export const ConversationList: React.FC = () => {
                       <h4 className="text-sm font-semibold text-white truncate">{friend.name}</h4>
                       <span className="text-[10px] text-slate-500 font-mono">{friend.friendId}</span>
                     </div>
-                    <p className="text-xs text-slate-400 truncate mt-0.5">
-                      {friend.isOnline ? 'Online' : 'Offline'}
-                    </p>
+                    <div className="flex items-center justify-between mt-0.5">
+                      <p className="text-xs text-slate-400 truncate">
+                        {friend.isOnline ? 'Online' : 'Offline'}
+                      </p>
+                      {unread > 0 && !isSelected && (
+                        <span className="w-5 h-5 rounded-full bg-indigo-500 text-white text-[10px] font-bold flex items-center justify-center shadow-md animate-pulse">
+                          {unread}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -127,12 +153,15 @@ export const ConversationList: React.FC = () => {
         ) : (
           filteredGroups.map((group) => {
             const isSelected = activeGroup?._id === group._id;
+            const unread = unreadCounts[group._id] || 0;
+
             return (
               <div
                 key={group._id}
                 onClick={() => {
                   setActiveGroup(group);
                   setActiveChatPartner(null);
+                  clearUnread(group._id);
                 }}
                 className={`p-3 rounded-2xl cursor-pointer transition-all flex items-center gap-3 ${
                   isSelected
@@ -140,7 +169,7 @@ export const ConversationList: React.FC = () => {
                     : 'hover:bg-slate-800/60 text-slate-300'
                 }`}
               >
-                <div className="w-12 h-12 rounded-2xl bg-indigo-900/60 border border-indigo-500/30 text-indigo-300 font-bold flex items-center justify-center overflow-hidden">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-900/60 border border-indigo-500/30 text-indigo-300 font-bold flex items-center justify-center overflow-hidden shrink-0">
                   {group.avatar ? (
                     <img src={group.avatar} alt={group.name} className="w-full h-full object-cover" />
                   ) : (
@@ -155,9 +184,16 @@ export const ConversationList: React.FC = () => {
                       {group.members.length} members
                     </span>
                   </div>
-                  <p className="text-xs text-slate-400 truncate mt-0.5">
-                    {group.description || 'Group Conversation'}
-                  </p>
+                  <div className="flex items-center justify-between mt-0.5">
+                    <p className="text-xs text-slate-400 truncate">
+                      {group.description || 'Group Conversation'}
+                    </p>
+                    {unread > 0 && !isSelected && (
+                      <span className="w-5 h-5 rounded-full bg-indigo-500 text-white text-[10px] font-bold flex items-center justify-center shadow-md animate-pulse">
+                        {unread}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             );
