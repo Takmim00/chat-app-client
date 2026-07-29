@@ -5,6 +5,7 @@ import { useChatStore } from '@/store/useChatStore';
 import { useGroupStore } from '@/store/useGroupStore';
 import { useCallStore } from '@/store/useCallStore';
 import { useWebRTC } from '@/hooks/useWebRTC';
+import { getSocket } from '@/hooks/useSocket';
 import { fetchApi } from '@/lib/api';
 import { MessageItem } from './MessageItem';
 import { MessageInput } from './MessageInput';
@@ -23,14 +24,18 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
   const { startCall } = useWebRTC();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Fetch messages when active chat changes
+  // Join group socket room & fetch messages when active chat changes
   useEffect(() => {
+    const socket = getSocket();
     const loadMessages = async () => {
       try {
         if (activeChatPartner) {
           const data = await fetchApi(`/message/direct/${activeChatPartner._id}`);
           setMessages(data.messages || []);
         } else if (activeGroup) {
+          if (socket) {
+            socket.emit('group:join', { groupId: activeGroup._id });
+          }
           const data = await fetchApi(`/message/group/${activeGroup._id}`);
           setMessages(data.messages || []);
         }
@@ -57,6 +62,12 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
   };
 
   const handleBackToConversations = () => {
+    if (activeGroup) {
+      const socket = getSocket();
+      if (socket) {
+        socket.emit('group:leave', { groupId: activeGroup._id });
+      }
+    }
     setActiveChatPartner(null);
     setActiveGroup(null);
   };

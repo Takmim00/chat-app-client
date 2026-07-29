@@ -163,28 +163,25 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
               {/* Media Content */}
               {message.fileUrl && (
                 <div className="mb-2">
-                  {message.type === 'image' && (
-                    <img src={message.fileUrl} alt="attachment" className="max-w-xs rounded-xl border border-slate-700/50" />
-                  )}
-                  {message.type === 'video' && (
-                    <video src={message.fileUrl} controls className="max-w-xs rounded-xl" />
-                  )}
-                  {message.type === 'audio' && (
+                  {(message.type === 'image' || message.fileUrl.match(/\.(jpeg|jpg|gif|png|webp)/i) || message.fileUrl.startsWith('data:image/')) ? (
+                    <img src={message.fileUrl} alt="attachment" className="max-w-xs rounded-xl border border-slate-700/50 shadow-md" />
+                  ) : (message.type === 'video' || message.fileUrl.match(/\.(mp4|webm|ogg)/i)) ? (
+                    <video src={message.fileUrl} controls className="max-w-xs rounded-xl shadow-md" />
+                  ) : (message.type === 'audio' || message.fileUrl.match(/\.(mp3|wav|ogg)/i)) ? (
                     <audio src={message.fileUrl} controls className="w-full max-w-xs mt-1" />
-                  )}
-                  {message.type === 'document' && (
+                  ) : (
                     <a
                       href={message.fileUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="p-3 bg-slate-900/60 rounded-xl flex items-center gap-3 text-xs text-indigo-300 hover:bg-slate-900 transition-colors"
                     >
-                      <FileText className="w-6 h-6 text-indigo-400" />
+                      <FileText className="w-6 h-6 text-indigo-400 shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold truncate text-white">{message.fileName || 'Document'}</p>
+                        <p className="font-semibold truncate text-white">{message.fileName || 'Attachment Document'}</p>
                         <p className="text-[10px] text-slate-400">{formatFileSize(message.fileSize)}</p>
                       </div>
-                      <Download className="w-4 h-4" />
+                      <Download className="w-4 h-4 shrink-0" />
                     </a>
                   )}
                 </div>

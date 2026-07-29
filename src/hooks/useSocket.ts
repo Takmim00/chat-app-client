@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useChatStore } from '@/store/useChatStore';
@@ -16,7 +16,6 @@ export const useSocket = () => {
   const { user, token } = useAuthStore();
   const { addMessage, updateMessage, setTyping } = useChatStore();
   const { receiveCall, endCall, callStatus } = useCallStore();
-  const { activeGroup } = useGroupStore();
 
   useEffect(() => {
     if (!user || !token) {
@@ -33,24 +32,34 @@ export const useSocket = () => {
     });
 
     socket.on('connect', () => {
-      console.log('[Socket] Connected as user:', user._id);
+      console.log('[Socket] Real-time connected as user:', user._id);
     });
 
+    // 1-to-1 Direct Message Receive
     socket.on('message:receive', (message) => {
+      console.log('[Socket Direct Message Received]:', message);
       addMessage(message);
       toast.info(`New message from ${message.senderId?.name || 'Friend'}`);
     });
 
-    socket.on('message:delivered', ({ messageId }) => {
-      // update delivery status
+    // Group Message Receive
+    socket.on('group:message-receive', ({ groupId, message }) => {
+      console.log('[Socket Group Message Received]:', groupId, message);
+      addMessage(message);
+      toast.info(`New group message`);
     });
 
+    // Typing Indicators
     socket.on('typing:start', ({ senderId }) => {
       setTyping(senderId, true);
     });
 
     socket.on('typing:stop', ({ senderId }) => {
       setTyping(senderId, false);
+    });
+
+    socket.on('group:typing', ({ userId, isTyping }) => {
+      setTyping(userId, isTyping);
     });
 
     // 1-to-1 Calling Events
@@ -76,7 +85,7 @@ export const useSocket = () => {
         socket = null;
       }
     };
-  }, [user, token]);
+  }, [user, token, addMessage, setTyping, receiveCall, endCall, callStatus]);
 
   return { socket };
 };
