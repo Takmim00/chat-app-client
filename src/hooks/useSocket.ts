@@ -75,9 +75,10 @@ export const useSocket = () => {
     const handleGroupTyping = ({ userId, isTyping }: any) => setTyping(userId, isTyping);
 
     // 1-to-1 Calling Events
-    const handleIncomingCall = ({ callerInfo }: any) => {
-      console.log('[Socket] Incoming call received from:', callerInfo);
-      receiveCall(callerInfo);
+    const handleIncomingCall = (data: any) => {
+      console.log('[Socket] Incoming call received:', data);
+      const caller = data?.callerInfo || { _id: data?.callerId, name: 'Incoming Call' };
+      receiveCall(caller);
     };
 
     const handleCallAccepted = () => {
