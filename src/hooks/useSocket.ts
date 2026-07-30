@@ -78,7 +78,7 @@ export const useSocket = () => {
     const handleIncomingCall = (data: any) => {
       console.log('[Socket] Incoming call event received:', data);
       const targetId = data?.targetReceiverId || data?.receiverId;
-      if (!targetId || targetId.toString() !== user._id.toString()) {
+      if (!targetId || String(targetId) !== String(user._id)) {
         console.log('[Socket IncomingCall Ignored]: Not targeted to me', { targetId, myId: user._id });
         return;
       }
@@ -90,28 +90,32 @@ export const useSocket = () => {
     const handleCallAccepted = (data: any) => {
       console.log('[Socket] Call Accepted event received:', data);
       const targetId = data?.targetCallerId || data?.callerId;
-      if (!targetId || targetId.toString() !== user._id.toString()) {
+      if (!targetId || String(targetId) !== String(user._id)) {
         console.log('[Socket CallAccepted Ignored]: Not targeted to me', { targetId, myId: user._id });
         return;
       }
       console.log('[Socket] Call was accepted by recipient');
+      // acceptCall is idempotent — safe to call here (caller side state transition)
       acceptCall();
     };
 
     const handleCallEnded = (data: any) => {
       console.log('[Socket] Call Ended event received:', data);
       const targetId = data?.targetPartnerId || data?.partnerId || data?.receiverId;
-      if (targetId && targetId.toString() !== user._id.toString()) {
+      if (targetId && String(targetId) !== String(user._id)) {
         return;
       }
+      // Get current call state to check if we're in a call
+      const currentCallStatus = useCallStore.getState().callStatus;
+      if (currentCallStatus === 'idle') return; // Not in a call, ignore
       endCall();
-      toast.info('Call ended.');
+      toast.info('Call ended by partner.');
     };
 
     const handleCallRejected = (data: any) => {
       console.log('[Socket] Call Rejected event received:', data);
       const targetId = data?.targetCallerId || data?.callerId;
-      if (targetId && targetId.toString() !== user._id.toString()) {
+      if (targetId && String(targetId) !== String(user._id)) {
         return;
       }
       endCall();
@@ -145,7 +149,7 @@ export const useSocket = () => {
         socket.off('call:rejected', handleCallRejected);
       }
     };
-  }, [user?._id, token, addMessage, setTyping, receiveCall, endCall]);
+  }, [user?._id, token, addMessage, setTyping, receiveCall, acceptCall, endCall]);
 
   return { socket };
 };

@@ -46,6 +46,11 @@ export const useCallStore = create<CallState>((set, get) => ({
   },
 
   acceptCall: () => {
+    const { callStatus, timerIntervalId } = get();
+    // Prevent duplicate timers if already connected
+    if (callStatus === 'connected') return;
+    // Clear any pre-existing timer just in case
+    if (timerIntervalId) clearInterval(timerIntervalId);
     const interval = setInterval(() => {
       set((state) => ({ callDuration: state.callDuration + 1 }));
     }, 1000);

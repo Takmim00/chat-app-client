@@ -6,7 +6,7 @@ import { Phone, PhoneOff, Volume2 } from 'lucide-react';
 import { getSocket } from '@/hooks/useSocket';
 
 export const IncomingCallModal: React.FC = () => {
-  const { callStatus, partner, rejectCall } = useCallStore();
+  const { callStatus, partner, acceptCall, rejectCall } = useCallStore();
 
   if (callStatus !== 'incoming' || !partner) return null;
 
@@ -15,6 +15,10 @@ export const IncomingCallModal: React.FC = () => {
     if (socket && partner) {
       socket.emit('call:accept', { callerId: partner._id });
     }
+    // Immediately transition UI to connected state so IncomingCallModal dismisses
+    // and ActiveCallScreen with timer shows up
+    acceptCall();
+    // Then start the WebRTC answer process (gets media, creates answer, etc.)
     if (callWebRTCRef.answerCallFn) {
       callWebRTCRef.answerCallFn();
     }
