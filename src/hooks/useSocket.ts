@@ -25,7 +25,7 @@ export const useSocket = () => {
       return;
     }
 
-    // Reuse existing active socket if connected with same token
+    // Create socket if needed
     if (!socket || !socket.connected) {
       socket = io(SOCKET_URL, {
         auth: { token },
@@ -36,7 +36,11 @@ export const useSocket = () => {
       });
 
       socket.on('connect', () => {
-        console.log('[Socket Persistent] Real-time connected as user:', user._id);
+        console.log('[Socket] Connected as user:', user._id, 'socketId:', socket?.id);
+      });
+
+      socket.on('reconnect', () => {
+        console.log('[Socket] Reconnected as user:', user._id, 'socketId:', socket?.id);
       });
     }
 
@@ -76,12 +80,16 @@ export const useSocket = () => {
 
     // 1-to-1 Calling Events
     const handleIncomingCall = (data: any) => {
-      console.log('[Socket] Incoming call event received:', data);
-      const targetId = data?.targetReceiverId || data?.receiverId;
-      if (!targetId || String(targetId) !== String(user._id)) {
-        console.log('[Socket IncomingCall Ignored]: Not targeted to me', { targetId, myId: user._id });
+      console.log('[Socket] *** INCOMING CALL EVENT ***', JSON.stringify(data));
+
+      // Since server only emits to targeted user (no broadcast), skip strict ID filtering
+      // Just ensure we're not already in a call
+      const currentStatus = useCallStore.getState().callStatus;
+      if (currentStatus !== 'idle') {
+        console.log('[Socket] Already in a call, ignoring incoming call. Status:', currentStatus);
         return;
       }
+
       // Build a caller object with guaranteed name field to prevent UI crash
       const rawCaller = data?.callerInfo || {};
       const caller = {
@@ -92,38 +100,35 @@ export const useSocket = () => {
         profilePic: rawCaller.profilePic || '',
         friendId: rawCaller.friendId || '',
       };
-      console.log('[Socket] Processing incoming call from:', caller.name, 'ID:', caller._id);
+      console.log('[Socket] Showing incoming call from:', caller.name, 'ID:', caller._id);
       receiveCall(caller);
       toast.info(`Incoming Voice Call from ${caller.name}`);
     };
 
     const handleCallAccepted = (data: any) => {
-      console.log('[Socket] Call Accepted event received:', data);
+      console.log('[Socket] Call Accepted event:', data);
       const targetId = data?.targetCallerId || data?.callerId;
       if (!targetId || String(targetId) !== String(user._id)) {
-        console.log('[Socket CallAccepted Ignored]: Not targeted to me', { targetId, myId: user._id });
         return;
       }
       console.log('[Socket] Call was accepted by recipient');
-      // acceptCall is idempotent — safe to call here (caller side state transition)
       acceptCall();
     };
 
     const handleCallEnded = (data: any) => {
-      console.log('[Socket] Call Ended event received:', data);
+      console.log('[Socket] Call Ended event:', data);
       const targetId = data?.targetPartnerId || data?.partnerId || data?.receiverId;
       if (targetId && String(targetId) !== String(user._id)) {
         return;
       }
-      // Get current call state to check if we're in a call
       const currentCallStatus = useCallStore.getState().callStatus;
-      if (currentCallStatus === 'idle') return; // Not in a call, ignore
+      if (currentCallStatus === 'idle') return;
       endCall();
       toast.info('Call ended by partner.');
     };
 
     const handleCallRejected = (data: any) => {
-      console.log('[Socket] Call Rejected event received:', data);
+      console.log('[Socket] Call Rejected event:', data);
       const targetId = data?.targetCallerId || data?.callerId;
       if (targetId && String(targetId) !== String(user._id)) {
         return;

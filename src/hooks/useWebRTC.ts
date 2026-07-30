@@ -10,6 +10,9 @@ const RTC_CONFIG: RTCConfiguration = {
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
+    { urls: 'stun:global.stun.twilio.com:3478' },
   ],
 };
 
@@ -29,11 +32,12 @@ export const useWebRTC = () => {
     partnerRef.current = partner;
   }, [partner]);
 
-  // Initialize Remote Audio Element
+  // Initialize Remote Audio Element with autoplay and playsinline
   useEffect(() => {
     if (typeof window !== 'undefined' && !remoteAudioRef.current) {
       const audio = document.createElement('audio');
       audio.autoplay = true;
+      (audio as any).playsInline = true;
       document.body.appendChild(audio);
       remoteAudioRef.current = audio;
     }
@@ -56,10 +60,18 @@ export const useWebRTC = () => {
   const getMedia = useCallback(async () => {
     try {
       if (localStreamRef.current) return localStreamRef.current;
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+        video: false,
+      });
       localStreamRef.current = stream;
       return stream;
     } catch (err) {
+      console.error('[WebRTC getMedia Error]:', err);
       toast.error('Microphone permission required for voice calls. Check browser settings.');
       useCallStore.getState().resetCall();
       return null;
@@ -72,6 +84,7 @@ export const useWebRTC = () => {
 
     pc.onicecandidate = (event) => {
       if (event.candidate && socket) {
+        console.log('[WebRTC] Emitting ICE candidate to:', targetUserId);
         socket.emit('call:ice-candidate', {
           to: targetUserId,
           candidate: event.candidate,
@@ -80,17 +93,29 @@ export const useWebRTC = () => {
     };
 
     pc.ontrack = (event) => {
-      console.log('[WebRTC] Received Remote Audio Track:', event.streams);
-      if (remoteAudioRef.current && event.streams[0]) {
-        remoteAudioRef.current.srcObject = event.streams[0];
-        remoteAudioRef.current.play().catch(() => {});
+      console.log('[WebRTC] Received Remote Audio Track:', event.track, event.streams);
+      // Fallback: Use event.streams[0] if present, or construct a new MediaStream from event.track
+      const remoteStream = (event.streams && event.streams[0]) ? event.streams[0] : new MediaStream([event.track]);
+      
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = remoteStream;
+        remoteAudioRef.current.play().then(() => {
+          console.log('[WebRTC] Remote Audio Playing Successfully');
+        }).catch((err) => {
+          console.warn('[WebRTC] Remote audio play error / autoplay restriction:', err);
+        });
       }
     };
 
     pc.onconnectionstatechange = () => {
-      console.log('[WebRTC] Connection state:', pc.connectionState);
-      if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-        console.warn('[WebRTC] Connection lost/failed');
+      console.log('[WebRTC] Peer Connection state changed:', pc.connectionState);
+      if (pc.connectionState === 'connected') {
+        console.log('[WebRTC] Peer connection ESTABLISHED successfully!');
+        if (remoteAudioRef.current) {
+          remoteAudioRef.current.play().catch(() => {});
+        }
+      } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+        console.warn('[WebRTC] Peer connection lost/failed state:', pc.connectionState);
       }
     };
 
@@ -121,6 +146,11 @@ export const useWebRTC = () => {
         return;
       }
 
+      // Pre-unlock remote audio element on user accept click
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.play().catch(() => {});
+      }
+
       const pc = createPeerConnection(currentPartner._id);
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
@@ -137,7 +167,7 @@ export const useWebRTC = () => {
       }
 
       socket.emit('call:answer', { to: currentPartner._id, answer });
-      console.log('[WebRTC] Answer sent successfully');
+      console.log('[WebRTC] Answer created & sent successfully');
     } catch (err) {
       console.error('[WebRTC] Error processing answer:', err);
       toast.error('Failed to connect call. Please try again.');
@@ -180,6 +210,11 @@ export const useWebRTC = () => {
           }
         }
 
+        // Try to unlock/play remote audio
+        if (remoteAudioRef.current) {
+          remoteAudioRef.current.play().catch(() => {});
+        }
+
         // acceptCall is idempotent — safe to call even if already connected
         acceptCall();
       }
@@ -189,11 +224,11 @@ export const useWebRTC = () => {
       const myId = user?._id || useAuthStore.getState().user?._id;
       if (data?.targetReceiverId && String(data.targetReceiverId) !== String(myId)) return;
       const pc = peerConnectionRef.current;
-      if (pc && pc.remoteDescription) {
+      if (pc && pc.remoteDescription && pc.remoteDescription.type) {
         try {
           await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
         } catch (e) {
-          console.error('Error adding ICE candidate', e);
+          console.error('[WebRTC] Error adding ICE candidate:', e);
         }
       } else if (data?.candidate) {
         iceCandidatesQueueRef.current.push(data.candidate);
@@ -228,17 +263,24 @@ export const useWebRTC = () => {
 
     console.log('[WebRTC] Initiating Call to partner:', currentPartner.name, 'ID:', currentPartner._id);
     
-    // 1. Emit call:initiate IMMEDIATELY so recipient receives incoming call modal instantly!
+    // 1. Pre-unlock remote audio element on user click
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.play().catch(() => {});
+    }
+
+    // 2. Emit call:initiate IMMEDIATELY so recipient receives incoming call modal instantly!
     socket.emit('call:initiate', { receiverId: currentPartner._id, callerInfo: currentUser });
 
-    // 2. Get microphone media and generate WebRTC offer
+    // 3. Get microphone media and generate WebRTC offer
     const stream = await getMedia();
     if (!stream) return;
 
     const pc = createPeerConnection(currentPartner._id);
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
-    const offer = await pc.createOffer();
+    const offer = await pc.createOffer({
+      offerToReceiveAudio: true,
+    });
     await pc.setLocalDescription(offer);
 
     socket.emit('call:offer', { to: currentPartner._id, offer });
@@ -249,6 +291,11 @@ export const useWebRTC = () => {
     const socket = getSocket();
     const currentPartner = partnerRef.current;
     if (!socket || !currentPartner) return;
+
+    // Pre-unlock remote audio element on user accept click
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.play().catch(() => {});
+    }
 
     // If the WebRTC offer hasn't arrived yet, set a flag and process when it arrives
     if (!pendingOfferRef.current) {
