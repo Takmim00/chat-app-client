@@ -76,22 +76,29 @@ export const useSocket = () => {
 
     // 1-to-1 Calling Events
     const handleIncomingCall = (data: any) => {
-      console.log('[Socket] Incoming call received:', data);
+      console.log('[Socket] Incoming call event received:', data);
+      if (data?.targetReceiverId && data.targetReceiverId !== user._id) {
+        return; // Ignore call intended for another user
+      }
       const caller = data?.callerInfo || { _id: data?.callerId, name: 'Incoming Call' };
       receiveCall(caller);
+      toast.info(`Incoming Voice Call from ${caller.name || 'Friend'}`);
     };
 
-    const handleCallAccepted = () => {
+    const handleCallAccepted = (data: any) => {
+      if (data?.targetCallerId && data.targetCallerId !== user._id) return;
       console.log('[Socket] Call was accepted by recipient');
       acceptCall();
     };
 
-    const handleCallEnded = () => {
+    const handleCallEnded = (data: any) => {
+      if (data?.targetPartnerId && data.targetPartnerId !== user._id) return;
       endCall();
       toast.info('Call ended by partner.');
     };
 
-    const handleCallRejected = () => {
+    const handleCallRejected = (data: any) => {
+      if (data?.targetCallerId && data.targetCallerId !== user._id) return;
       endCall();
       toast.warning('Call was rejected.');
     };

@@ -87,30 +87,33 @@ export const useWebRTC = () => {
     const socket = getSocket();
     if (!socket) return;
 
-    const handleOffer = async ({ from, offer }: { from: string; offer: RTCSessionDescriptionInit }) => {
-      console.log('[WebRTC] Received Call Offer from:', from);
-      pendingOfferRef.current = offer;
+    const handleOffer = async (data: any) => {
+      if (data?.targetReceiverId && data.targetReceiverId !== user?._id) return;
+      console.log('[WebRTC] Received Call Offer from:', data.from);
+      pendingOfferRef.current = data.offer;
     };
 
-    const handleAnswer = async ({ from, answer }: { from: string; answer: RTCSessionDescriptionInit }) => {
-      console.log('[WebRTC] Received Call Answer from:', from);
+    const handleAnswer = async (data: any) => {
+      if (data?.targetReceiverId && data.targetReceiverId !== user?._id) return;
+      console.log('[WebRTC] Received Call Answer from:', data.from);
       const pc = peerConnectionRef.current;
       if (pc && pc.signalingState !== 'stable') {
-        await pc.setRemoteDescription(new RTCSessionDescription(answer));
+        await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
         acceptCall();
       }
     };
 
-    const handleIceCandidate = async ({ candidate }: { candidate: RTCIceCandidateInit }) => {
+    const handleIceCandidate = async (data: any) => {
+      if (data?.targetReceiverId && data.targetReceiverId !== user?._id) return;
       const pc = peerConnectionRef.current;
       if (pc && pc.remoteDescription) {
         try {
-          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
         } catch (e) {
           console.error('Error adding ICE candidate', e);
         }
-      } else if (candidate) {
-        iceCandidatesQueueRef.current.push(candidate);
+      } else if (data?.candidate) {
+        iceCandidatesQueueRef.current.push(data.candidate);
       }
     };
 
