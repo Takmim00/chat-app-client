@@ -207,7 +207,14 @@ export const useWebRTC = () => {
       pendingOfferRef.current = null;
       iceCandidatesQueueRef.current = [];
     }
-  }, [callStatus]);
+  // Register global WebRTC actions to call store
+  const { setWebRTCActions } = useCallStore();
+  useEffect(() => {
+    setWebRTCActions({
+      startCallFn: startCall,
+      answerCallFn: answerCall,
+    });
+  }, [startCall, answerCall, setWebRTCActions]);
 
   return { startCall, answerCall };
 };

@@ -31,8 +31,9 @@ export default function Home() {
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
   const [isGroupSettingsOpen, setIsGroupSettingsOpen] = useState(false);
 
-  // Initialize socket connection
+  // Initialize socket & WebRTC connections globally
   useSocket();
+  useWebRTC();
 
   useEffect(() => {
     fetchProfile();

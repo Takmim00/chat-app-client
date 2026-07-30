@@ -4,7 +4,6 @@ import React, { useEffect, useRef } from 'react';
 import { useChatStore } from '@/store/useChatStore';
 import { useGroupStore } from '@/store/useGroupStore';
 import { useCallStore } from '@/store/useCallStore';
-import { useWebRTC } from '@/hooks/useWebRTC';
 import { getSocket } from '@/hooks/useSocket';
 import { fetchApi } from '@/lib/api';
 import { MessageItem } from './MessageItem';
@@ -54,7 +53,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
   const handleStartVoiceCall = () => {
     if (activeChatPartner) {
       initiateCall(activeChatPartner);
-      startCall(activeChatPartner);
+      if (startCallFn) startCallFn(activeChatPartner);
     } else if (activeGroup) {
       setIsInGroupCall(true);
       toast.info('Starting Group Voice Call...');
