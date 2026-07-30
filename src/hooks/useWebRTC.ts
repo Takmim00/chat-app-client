@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { getSocket } from './useSocket';
 import { useCallStore } from '@/store/useCallStore';
 import { useAuthStore } from '@/store/useAuthStore';
+import { User } from '@/types';
 import { toast } from 'sonner';
 
 const RTC_CONFIG: RTCConfiguration = {
