@@ -5,6 +5,7 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { useChatStore } from '@/store/useChatStore';
 import { useGroupStore } from '@/store/useGroupStore';
 import { useSocket } from '@/hooks/useSocket';
+import { useWebRTC } from '@/hooks/useWebRTC';
 import { OtpLoginForm } from '@/components/auth/OtpLoginForm';
 import { Sidebar } from '@/components/sidebar/Sidebar';
 import { ConversationList } from '@/components/sidebar/ConversationList';

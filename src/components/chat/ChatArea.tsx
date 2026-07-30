@@ -19,8 +19,7 @@ interface ChatAreaProps {
 export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
   const { activeChatPartner, setActiveChatPartner, messages, setMessages, typingUsers } = useChatStore();
   const { activeGroup, setActiveGroup, setIsInGroupCall } = useGroupStore();
-  const { initiateCall } = useCallStore();
-  const { startCall } = useWebRTC();
+  const { initiateCall, startCallFn } = useCallStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Join group socket room & fetch messages when active chat changes
