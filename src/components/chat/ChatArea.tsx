@@ -3,7 +3,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useChatStore } from '@/store/useChatStore';
 import { useGroupStore } from '@/store/useGroupStore';
-import { useCallStore } from '@/store/useCallStore';
+import { useCallStore, callWebRTCRef } from '@/store/useCallStore';
 import { getSocket } from '@/hooks/useSocket';
 import { fetchApi } from '@/lib/api';
 import { MessageItem } from './MessageItem';
@@ -19,7 +19,7 @@ interface ChatAreaProps {
 export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
   const { activeChatPartner, setActiveChatPartner, messages, setMessages, typingUsers } = useChatStore();
   const { activeGroup, setActiveGroup, setIsInGroupCall } = useGroupStore();
-  const { initiateCall, startCallFn } = useCallStore();
+  const { initiateCall } = useCallStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Join group socket room & fetch messages when active chat changes
@@ -52,7 +52,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
   const handleStartVoiceCall = () => {
     if (activeChatPartner) {
       initiateCall(activeChatPartner);
-      if (startCallFn) startCallFn(activeChatPartner);
+      if (callWebRTCRef.startCallFn) {
+        callWebRTCRef.startCallFn(activeChatPartner);
+      }
     } else if (activeGroup) {
       setIsInGroupCall(true);
       toast.info('Starting Group Voice Call...');

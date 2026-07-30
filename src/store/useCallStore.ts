@@ -3,6 +3,14 @@ import { User } from '@/types';
 
 export type CallStatus = 'idle' | 'outgoing' | 'incoming' | 'connected' | 'ended';
 
+export const callWebRTCRef: {
+  startCallFn: ((partner: User) => void) | null;
+  answerCallFn: (() => void) | null;
+} = {
+  startCallFn: null,
+  answerCallFn: null,
+};
+
 interface CallState {
   callStatus: CallStatus;
   partner: User | null;
@@ -10,11 +18,6 @@ interface CallState {
   isSpeakerOn: boolean;
   callDuration: number;
   timerIntervalId: any;
-
-  // Global WebRTC action handles
-  startCallFn: ((partner: User) => void) | null;
-  answerCallFn: (() => void) | null;
-  setWebRTCActions: (actions: { startCallFn: (partner: User) => void; answerCallFn: () => void }) => void;
 
   initiateCall: (partner: User) => void;
   receiveCall: (caller: User) => void;
@@ -33,13 +36,6 @@ export const useCallStore = create<CallState>((set, get) => ({
   isSpeakerOn: true,
   callDuration: 0,
   timerIntervalId: null,
-
-  startCallFn: null,
-  answerCallFn: null,
-
-  setWebRTCActions: ({ startCallFn, answerCallFn }) => {
-    set({ startCallFn, answerCallFn });
-  },
 
   initiateCall: (partner) => {
     set({ callStatus: 'outgoing', partner, callDuration: 0 });

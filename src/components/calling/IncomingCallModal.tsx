@@ -1,12 +1,12 @@
 'use client';
 
 import React from 'react';
-import { useCallStore } from '@/store/useCallStore';
+import { useCallStore, callWebRTCRef } from '@/store/useCallStore';
 import { Phone, PhoneOff, Volume2 } from 'lucide-react';
 import { getSocket } from '@/hooks/useSocket';
 
 export const IncomingCallModal: React.FC = () => {
-  const { callStatus, partner, rejectCall, answerCallFn } = useCallStore();
+  const { callStatus, partner, rejectCall } = useCallStore();
 
   if (callStatus !== 'incoming' || !partner) return null;
 
@@ -15,7 +15,9 @@ export const IncomingCallModal: React.FC = () => {
     if (socket && partner) {
       socket.emit('call:accept', { callerId: partner._id });
     }
-    if (answerCallFn) answerCallFn();
+    if (callWebRTCRef.answerCallFn) {
+      callWebRTCRef.answerCallFn();
+    }
   };
 
   const handleReject = () => {

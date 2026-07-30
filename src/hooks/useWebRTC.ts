@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { getSocket } from './useSocket';
-import { useCallStore } from '@/store/useCallStore';
+import { useCallStore, callWebRTCRef } from '@/store/useCallStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { User } from '@/types';
 import { toast } from 'sonner';
@@ -209,14 +209,11 @@ export const useWebRTC = () => {
     }
   }, [callStatus]);
 
-  // Register global WebRTC actions to call store
-  const { setWebRTCActions } = useCallStore();
+  // Register global WebRTC action refs cleanly without triggering Zustand re-renders
   useEffect(() => {
-    setWebRTCActions({
-      startCallFn: startCall,
-      answerCallFn: answerCall,
-    });
-  }, [startCall, answerCall, setWebRTCActions]);
+    callWebRTCRef.startCallFn = startCall;
+    callWebRTCRef.answerCallFn = answerCall;
+  }, [startCall, answerCall]);
 
   return { startCall, answerCall };
 };
