@@ -7,13 +7,37 @@ import { toast } from 'sonner';
 
 const RTC_CONFIG: RTCConfiguration = {
   iceServers: [
+    // STUN servers for public IP discovery
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
     { urls: 'stun:stun3.l.google.com:19302' },
     { urls: 'stun:stun4.l.google.com:19302' },
     { urls: 'stun:global.stun.twilio.com:3478' },
+    
+    // TURN servers for cross-network / symmetric NAT / firewall traversal (relays media across different IPs & mobile networks)
+    {
+      urls: 'turn:openrelay.metered.ca:80',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    {
+      urls: 'turns:openrelay.metered.ca:443?transport=tcp',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
   ],
+  iceCandidatePoolSize: 10,
 };
 
 export const useWebRTC = () => {
@@ -84,7 +108,7 @@ export const useWebRTC = () => {
 
     pc.onicecandidate = (event) => {
       if (event.candidate && socket) {
-        console.log('[WebRTC] Emitting ICE candidate to:', targetUserId);
+        console.log('[WebRTC Candidate] Type:', event.candidate.type, 'Protocol:', event.candidate.protocol, 'Emitting to:', targetUserId);
         socket.emit('call:ice-candidate', {
           to: targetUserId,
           candidate: event.candidate,
@@ -93,14 +117,14 @@ export const useWebRTC = () => {
     };
 
     pc.ontrack = (event) => {
-      console.log('[WebRTC] Received Remote Audio Track:', event.track, event.streams);
+      console.log('[WebRTC Track Received]:', event.track, 'Streams:', event.streams);
       // Fallback: Use event.streams[0] if present, or construct a new MediaStream from event.track
       const remoteStream = (event.streams && event.streams[0]) ? event.streams[0] : new MediaStream([event.track]);
       
       if (remoteAudioRef.current) {
         remoteAudioRef.current.srcObject = remoteStream;
         remoteAudioRef.current.play().then(() => {
-          console.log('[WebRTC] Remote Audio Playing Successfully');
+          console.log('[WebRTC] Remote Audio Playing Successfully!');
         }).catch((err) => {
           console.warn('[WebRTC] Remote audio play error / autoplay restriction:', err);
         });
@@ -108,15 +132,19 @@ export const useWebRTC = () => {
     };
 
     pc.onconnectionstatechange = () => {
-      console.log('[WebRTC] Peer Connection state changed:', pc.connectionState);
+      console.log('[WebRTC ConnectionStateChanged]:', pc.connectionState);
       if (pc.connectionState === 'connected') {
         console.log('[WebRTC] Peer connection ESTABLISHED successfully!');
         if (remoteAudioRef.current) {
           remoteAudioRef.current.play().catch(() => {});
         }
       } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-        console.warn('[WebRTC] Peer connection lost/failed state:', pc.connectionState);
+        console.warn('[WebRTC] Connection state is:', pc.connectionState);
       }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      console.log('[WebRTC ICE StateChanged]:', pc.iceConnectionState);
     };
 
     peerConnectionRef.current = pc;
@@ -181,8 +209,6 @@ export const useWebRTC = () => {
     if (!socket) return;
 
     const handleOffer = async (data: any) => {
-      const myId = user?._id || useAuthStore.getState().user?._id;
-      if (data?.targetReceiverId && String(data.targetReceiverId) !== String(myId)) return;
       console.log('[WebRTC] Received Call Offer from:', data.from);
       pendingOfferRef.current = data.offer;
 
@@ -195,8 +221,6 @@ export const useWebRTC = () => {
     };
 
     const handleAnswer = async (data: any) => {
-      const myId = user?._id || useAuthStore.getState().user?._id;
-      if (data?.targetReceiverId && String(data.targetReceiverId) !== String(myId)) return;
       console.log('[WebRTC] Received Call Answer from:', data.from);
       const pc = peerConnectionRef.current;
       if (pc && pc.signalingState !== 'stable') {
@@ -221,8 +245,7 @@ export const useWebRTC = () => {
     };
 
     const handleIceCandidate = async (data: any) => {
-      const myId = user?._id || useAuthStore.getState().user?._id;
-      if (data?.targetReceiverId && String(data.targetReceiverId) !== String(myId)) return;
+      console.log('[WebRTC] Received ICE candidate from:', data.from);
       const pc = peerConnectionRef.current;
       if (pc && pc.remoteDescription && pc.remoteDescription.type) {
         try {
@@ -244,7 +267,7 @@ export const useWebRTC = () => {
       socket.off('call:answer', handleAnswer);
       socket.off('call:ice-candidate', handleIceCandidate);
     };
-  }, [acceptCall, processAnswer, user?._id]);
+  }, [acceptCall, processAnswer]);
 
   // Initiate Call (Caller side)
   const startCall = async (targetPartnerUser?: User) => {
