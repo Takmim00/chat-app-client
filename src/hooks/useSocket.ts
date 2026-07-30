@@ -14,7 +14,7 @@ export const getSocket = (): Socket | null => socket;
 export const useSocket = () => {
   const { user, token } = useAuthStore();
   const { addMessage, setTyping } = useChatStore();
-  const { receiveCall, endCall } = useCallStore();
+  const { receiveCall, acceptCall, endCall } = useCallStore();
 
   useEffect(() => {
     if (!user || !token) {
@@ -76,7 +76,13 @@ export const useSocket = () => {
 
     // 1-to-1 Calling Events
     const handleIncomingCall = ({ callerInfo }: any) => {
+      console.log('[Socket] Incoming call received from:', callerInfo);
       receiveCall(callerInfo);
+    };
+
+    const handleCallAccepted = () => {
+      console.log('[Socket] Call was accepted by recipient');
+      acceptCall();
     };
 
     const handleCallEnded = () => {
@@ -97,6 +103,7 @@ export const useSocket = () => {
     socket.on('typing:stop', handleTypingStop);
     socket.on('group:typing', handleGroupTyping);
     socket.on('call:incoming', handleIncomingCall);
+    socket.on('call:accepted', handleCallAccepted);
     socket.on('call:ended', handleCallEnded);
     socket.on('call:rejected', handleCallRejected);
 
@@ -110,6 +117,7 @@ export const useSocket = () => {
         socket.off('typing:stop', handleTypingStop);
         socket.off('group:typing', handleGroupTyping);
         socket.off('call:incoming', handleIncomingCall);
+        socket.off('call:accepted', handleCallAccepted);
         socket.off('call:ended', handleCallEnded);
         socket.off('call:rejected', handleCallRejected);
       }

@@ -18,6 +18,13 @@ export const useWebRTC = () => {
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
+  const iceCandidatesQueueRef = useRef<RTCIceCandidateInit[]>([]);
+  const partnerRef = useRef(partner);
+
+  useEffect(() => {
+    partnerRef.current = partner;
+  }, [partner]);
 
   // Initialize Remote Audio Element
   useEffect(() => {
@@ -36,14 +43,27 @@ export const useWebRTC = () => {
     };
   }, []);
 
-  const createPeerConnection = useCallback(() => {
+  const getMedia = useCallback(async () => {
+    try {
+      if (localStreamRef.current) return localStreamRef.current;
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      localStreamRef.current = stream;
+      return stream;
+    } catch (err) {
+      toast.error('Microphone permission required for voice calls.');
+      endCall();
+      return null;
+    }
+  }, [endCall]);
+
+  const createPeerConnection = useCallback((targetUserId: string) => {
     const pc = new RTCPeerConnection(RTC_CONFIG);
     const socket = getSocket();
 
     pc.onicecandidate = (event) => {
-      if (event.candidate && partner && socket) {
+      if (event.candidate && socket) {
         socket.emit('call:ice-candidate', {
-          to: partner._id,
+          to: targetUserId,
           candidate: event.candidate,
         });
       }
@@ -59,50 +79,20 @@ export const useWebRTC = () => {
 
     peerConnectionRef.current = pc;
     return pc;
-  }, [partner]);
-
-  const getMedia = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-      localStreamRef.current = stream;
-      return stream;
-    } catch (err) {
-      toast.error('Microphone permission required for voice calls.');
-      endCall();
-      return null;
-    }
-  }, [endCall]);
+  }, []);
 
   // Handle Call Signaling Setup
   useEffect(() => {
     const socket = getSocket();
-    if (!socket || !partner) return;
+    if (!socket) return;
 
     const handleOffer = async ({ from, offer }: { from: string; offer: RTCSessionDescriptionInit }) => {
       console.log('[WebRTC] Received Call Offer from:', from);
-      if (from !== partner._id) return;
-      let pc = peerConnectionRef.current || createPeerConnection();
-      const stream = localStreamRef.current || (await getMedia());
-
-      if (stream) {
-        stream.getTracks().forEach((track) => {
-          if (!pc.getSenders().some((s) => s.track === track)) {
-            pc.addTrack(track, stream);
-          }
-        });
-      }
-
-      await pc.setRemoteDescription(new RTCSessionDescription(offer));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-
-      socket.emit('call:answer', { to: from, answer });
-      acceptCall();
+      pendingOfferRef.current = offer;
     };
 
     const handleAnswer = async ({ from, answer }: { from: string; answer: RTCSessionDescriptionInit }) => {
       console.log('[WebRTC] Received Call Answer from:', from);
-      if (from !== partner._id) return;
       const pc = peerConnectionRef.current;
       if (pc && pc.signalingState !== 'stable') {
         await pc.setRemoteDescription(new RTCSessionDescription(answer));
@@ -112,12 +102,14 @@ export const useWebRTC = () => {
 
     const handleIceCandidate = async ({ candidate }: { candidate: RTCIceCandidateInit }) => {
       const pc = peerConnectionRef.current;
-      if (pc && candidate) {
+      if (pc && pc.remoteDescription) {
         try {
           await pc.addIceCandidate(new RTCIceCandidate(candidate));
         } catch (e) {
           console.error('Error adding ICE candidate', e);
         }
+      } else if (candidate) {
+        iceCandidatesQueueRef.current.push(candidate);
       }
     };
 
@@ -130,9 +122,9 @@ export const useWebRTC = () => {
       socket.off('call:answer', handleAnswer);
       socket.off('call:ice-candidate', handleIceCandidate);
     };
-  }, [partner, createPeerConnection, getMedia, acceptCall]);
+  }, [acceptCall]);
 
-  // Initiate Call (Offer sender)
+  // Initiate Call (Caller side)
   const startCall = async () => {
     const socket = getSocket();
     if (!socket || !partner || !user) return;
@@ -141,7 +133,7 @@ export const useWebRTC = () => {
     const stream = await getMedia();
     if (!stream) return;
 
-    const pc = createPeerConnection();
+    const pc = createPeerConnection(partner._id);
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
     const offer = await pc.createOffer();
@@ -150,6 +142,35 @@ export const useWebRTC = () => {
     // Pass logged-in user profile as callerInfo
     socket.emit('call:initiate', { receiverId: partner._id, callerInfo: user });
     socket.emit('call:offer', { to: partner._id, offer });
+  };
+
+  // Answer Call (Receiver side)
+  const answerCall = async () => {
+    const socket = getSocket();
+    const currentPartner = partnerRef.current;
+    if (!socket || !currentPartner || !pendingOfferRef.current) return;
+
+    console.log('[WebRTC] Answering call from:', currentPartner.name);
+    const stream = await getMedia();
+    if (!stream) return;
+
+    const pc = createPeerConnection(currentPartner._id);
+    stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+
+    await pc.setRemoteDescription(new RTCSessionDescription(pendingOfferRef.current));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+
+    // Flush queued ICE candidates
+    while (iceCandidatesQueueRef.current.length > 0) {
+      const cand = iceCandidatesQueueRef.current.shift();
+      if (cand) {
+        await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+      }
+    }
+
+    socket.emit('call:answer', { to: currentPartner._id, answer });
+    acceptCall();
   };
 
   // Mute Microphone
@@ -172,8 +193,10 @@ export const useWebRTC = () => {
         localStreamRef.current.getTracks().forEach((track) => track.stop());
         localStreamRef.current = null;
       }
+      pendingOfferRef.current = null;
+      iceCandidatesQueueRef.current = [];
     }
   }, [callStatus]);
 
-  return { startCall };
+  return { startCall, answerCall };
 };
