@@ -51,11 +51,11 @@ export const useWebRTC = () => {
       localStreamRef.current = stream;
       return stream;
     } catch (err) {
-      toast.error('Microphone permission required for voice calls.');
-      endCall();
+      toast.error('Microphone permission required for voice calls. Check browser settings.');
+      useCallStore.getState().resetCall();
       return null;
     }
-  }, [endCall]);
+  }, []);
 
   const createPeerConnection = useCallback((targetUserId: string) => {
     const pc = new RTCPeerConnection(RTC_CONFIG);
@@ -141,6 +141,11 @@ export const useWebRTC = () => {
     }
 
     console.log('[WebRTC] Initiating Call to partner:', currentPartner.name, 'ID:', currentPartner._id);
+    
+    // 1. Emit call:initiate IMMEDIATELY so recipient receives incoming call modal instantly!
+    socket.emit('call:initiate', { receiverId: currentPartner._id, callerInfo: currentUser });
+
+    // 2. Get microphone media and generate WebRTC offer
     const stream = await getMedia();
     if (!stream) return;
 
@@ -150,8 +155,6 @@ export const useWebRTC = () => {
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
 
-    // Pass logged-in user profile as callerInfo
-    socket.emit('call:initiate', { receiverId: currentPartner._id, callerInfo: currentUser });
     socket.emit('call:offer', { to: currentPartner._id, offer });
   };
 
