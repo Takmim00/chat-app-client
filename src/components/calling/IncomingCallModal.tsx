@@ -10,6 +10,10 @@ export const IncomingCallModal: React.FC = () => {
 
   if (callStatus !== 'incoming' || !partner) return null;
 
+  // Safely extract display name — never crash if name is missing
+  const displayName = partner.name || partner.username || 'Unknown';
+  const initial = displayName.charAt(0).toUpperCase();
+
   const handleAccept = () => {
     const socket = getSocket();
     if (socket && partner) {
@@ -41,9 +45,9 @@ export const IncomingCallModal: React.FC = () => {
         <div className="relative inline-block">
           <div className="w-24 h-24 rounded-full bg-indigo-600 font-bold text-3xl text-white flex items-center justify-center overflow-hidden border-4 border-indigo-400 mx-auto shadow-xl shadow-indigo-500/30">
             {partner.profilePic ? (
-              <img src={partner.profilePic} alt={partner.name} className="w-full h-full object-cover" />
+              <img src={partner.profilePic} alt={displayName} className="w-full h-full object-cover" />
             ) : (
-              partner.name.charAt(0).toUpperCase()
+              initial
             )}
           </div>
           <div className="absolute -bottom-1 -right-1 p-2 bg-emerald-500 rounded-full text-white shadow-lg animate-bounce">
@@ -52,7 +56,7 @@ export const IncomingCallModal: React.FC = () => {
         </div>
 
         <div>
-          <h3 className="text-xl font-bold text-white">{partner.name}</h3>
+          <h3 className="text-xl font-bold text-white">{displayName}</h3>
           <p className="text-xs text-indigo-400 font-medium mt-1">Incoming Voice Call...</p>
         </div>
 

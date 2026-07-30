@@ -11,6 +11,9 @@ export const ActiveCallScreen: React.FC = () => {
 
   if (callStatus !== 'connected' || !partner) return null;
 
+  const displayName = partner.name || partner.username || 'Unknown';
+  const initial = displayName.charAt(0).toUpperCase();
+
   const formatDuration = (secs: number) => {
     const mins = Math.floor(secs / 60);
     const remainingSecs = secs % 60;
@@ -31,14 +34,14 @@ export const ActiveCallScreen: React.FC = () => {
         <div className="space-y-4">
           <div className="w-28 h-28 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 font-bold text-4xl text-white flex items-center justify-center overflow-hidden border-4 border-indigo-400 mx-auto shadow-2xl shadow-indigo-500/40">
             {partner.profilePic ? (
-              <img src={partner.profilePic} alt={partner.name} className="w-full h-full object-cover" />
+              <img src={partner.profilePic} alt={displayName} className="w-full h-full object-cover" />
             ) : (
-              partner.name.charAt(0).toUpperCase()
+              initial
             )}
           </div>
 
           <div>
-            <h3 className="text-2xl font-bold text-white">{partner.name}</h3>
+            <h3 className="text-2xl font-bold text-white">{displayName}</h3>
             <p className="text-sm text-emerald-400 font-mono font-semibold mt-1">
               {formatDuration(callDuration)}
             </p>

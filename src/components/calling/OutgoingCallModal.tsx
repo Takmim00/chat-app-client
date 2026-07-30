@@ -10,6 +10,9 @@ export const OutgoingCallModal: React.FC = () => {
 
   if (callStatus !== 'outgoing' || !partner) return null;
 
+  const displayName = partner.name || partner.username || 'Unknown';
+  const initial = displayName.charAt(0).toUpperCase();
+
   const handleCancelCall = () => {
     const socket = getSocket();
     if (socket && partner) {
@@ -24,16 +27,16 @@ export const OutgoingCallModal: React.FC = () => {
         <div className="relative inline-block">
           <div className="w-24 h-24 rounded-full bg-indigo-600 font-bold text-3xl text-white flex items-center justify-center overflow-hidden border-4 border-indigo-400 mx-auto shadow-xl shadow-indigo-500/30">
             {partner.profilePic ? (
-              <img src={partner.profilePic} alt={partner.name} className="w-full h-full object-cover" />
+              <img src={partner.profilePic} alt={displayName} className="w-full h-full object-cover" />
             ) : (
-              partner.name.charAt(0).toUpperCase()
+              initial
             )}
           </div>
           <span className="absolute inset-0 rounded-full border-4 border-indigo-500/60 animate-ping"></span>
         </div>
 
         <div>
-          <h3 className="text-xl font-bold text-white">{partner.name}</h3>
+          <h3 className="text-xl font-bold text-white">{displayName}</h3>
           <p className="text-xs text-indigo-400 font-medium mt-1 animate-pulse">Calling...</p>
         </div>
 

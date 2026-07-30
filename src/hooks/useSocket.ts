@@ -82,9 +82,19 @@ export const useSocket = () => {
         console.log('[Socket IncomingCall Ignored]: Not targeted to me', { targetId, myId: user._id });
         return;
       }
-      const caller = data?.callerInfo || { _id: data?.callerId, name: 'Incoming Call' };
+      // Build a caller object with guaranteed name field to prevent UI crash
+      const rawCaller = data?.callerInfo || {};
+      const caller = {
+        _id: rawCaller._id || data?.callerId || 'unknown',
+        email: rawCaller.email || '',
+        name: rawCaller.name || rawCaller.username || 'Incoming Call',
+        username: rawCaller.username || rawCaller.name || '',
+        profilePic: rawCaller.profilePic || '',
+        friendId: rawCaller.friendId || '',
+      };
+      console.log('[Socket] Processing incoming call from:', caller.name, 'ID:', caller._id);
       receiveCall(caller);
-      toast.info(`Incoming Voice Call from ${caller.name || 'Friend'}`);
+      toast.info(`Incoming Voice Call from ${caller.name}`);
     };
 
     const handleCallAccepted = (data: any) => {
