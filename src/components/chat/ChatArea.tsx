@@ -54,7 +54,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
   const handleStartVoiceCall = () => {
     if (activeChatPartner) {
       initiateCall(activeChatPartner);
-      startCall();
+      startCall(activeChatPartner);
     } else if (activeGroup) {
       setIsInGroupCall(true);
       toast.info('Starting Group Voice Call...');

@@ -125,23 +125,33 @@ export const useWebRTC = () => {
   }, [acceptCall]);
 
   // Initiate Call (Caller side)
-  const startCall = async () => {
+  const startCall = async (targetPartnerUser?: User) => {
     const socket = getSocket();
-    if (!socket || !partner || !user) return;
+    const currentPartner = targetPartnerUser || partner || partnerRef.current || useCallStore.getState().partner;
+    const currentUser = user || useAuthStore.getState().user;
 
-    console.log('[WebRTC] Initiating Call to partner:', partner.name);
+    if (!socket || !currentPartner || !currentUser) {
+      console.warn('[WebRTC startCall] Cannot initiate call. Missing parameters:', {
+        hasSocket: Boolean(socket),
+        currentPartner,
+        currentUser,
+      });
+      return;
+    }
+
+    console.log('[WebRTC] Initiating Call to partner:', currentPartner.name, 'ID:', currentPartner._id);
     const stream = await getMedia();
     if (!stream) return;
 
-    const pc = createPeerConnection(partner._id);
+    const pc = createPeerConnection(currentPartner._id);
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
 
     // Pass logged-in user profile as callerInfo
-    socket.emit('call:initiate', { receiverId: partner._id, callerInfo: user });
-    socket.emit('call:offer', { to: partner._id, offer });
+    socket.emit('call:initiate', { receiverId: currentPartner._id, callerInfo: currentUser });
+    socket.emit('call:offer', { to: currentPartner._id, offer });
   };
 
   // Answer Call (Receiver side)
