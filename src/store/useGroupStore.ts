@@ -25,7 +25,9 @@ export const useGroupStore = create<GroupState>((set) => ({
 
   setGroups: (groups) => set({ groups }),
 
-  setActiveGroup: (group) => set({ activeGroup: group }),
+  setActiveGroup: (group) => {
+    set({ activeGroup: group });
+  },
 
   addGroup: (group) => set((state) => ({ groups: [group, ...state.groups] })),
 

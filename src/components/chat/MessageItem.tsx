@@ -32,7 +32,11 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
 
-  const isMe = message.senderId._id === user?._id;
+  const senderObj = typeof message.senderId === 'object' ? message.senderId : null;
+  const senderIdStr = senderObj ? senderObj._id : (message.senderId as any);
+  const isMe = senderIdStr === user?._id;
+  const senderName = senderObj?.name || (isMe ? user?.name : 'Member');
+  const senderPic = senderObj?.profilePic || (isMe ? user?.profilePic : undefined);
 
   const handleTogglePin = async () => {
     try {
@@ -104,10 +108,10 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
       {/* Avatar */}
       {!isMe && (
         <div className="w-8 h-8 rounded-full bg-slate-700 text-white font-bold text-xs flex items-center justify-center overflow-hidden shrink-0 mt-1">
-          {message.senderId.profilePic ? (
-            <img src={message.senderId.profilePic} alt={message.senderId.name} className="w-full h-full object-cover" />
+          {senderPic ? (
+            <img src={senderPic} alt={senderName} className="w-full h-full object-cover" />
           ) : (
-            message.senderId.name?.charAt(0).toUpperCase()
+            senderName?.charAt(0).toUpperCase()
           )}
         </div>
       )}
@@ -116,7 +120,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
       <div className={`max-w-[85%] sm:max-w-[75%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
         {!isMe && (
           <span className="text-[11px] text-slate-400 font-medium ml-1 mb-0.5">
-            {message.senderId.name}
+            {senderName}
           </span>
         )}
 
