@@ -107,8 +107,9 @@ export const useSocket = () => {
 
     const handleCallAccepted = (data: any) => {
       console.log('[Socket] Call Accepted event:', data);
+      const myId = user?._id || useAuthStore.getState().user?._id;
       const targetId = data?.targetCallerId || data?.callerId;
-      if (!targetId || String(targetId) !== String(user._id)) {
+      if (targetId && myId && String(targetId) !== String(myId)) {
         return;
       }
       console.log('[Socket] Call was accepted by recipient');
@@ -117,8 +118,9 @@ export const useSocket = () => {
 
     const handleCallEnded = (data: any) => {
       console.log('[Socket] Call Ended event:', data);
+      const myId = user?._id || useAuthStore.getState().user?._id;
       const targetId = data?.targetPartnerId || data?.partnerId || data?.receiverId;
-      if (targetId && String(targetId) !== String(user._id)) {
+      if (targetId && myId && String(targetId) !== String(myId)) {
         return;
       }
       const currentCallStatus = useCallStore.getState().callStatus;
@@ -129,8 +131,9 @@ export const useSocket = () => {
 
     const handleCallRejected = (data: any) => {
       console.log('[Socket] Call Rejected event:', data);
+      const myId = user?._id || useAuthStore.getState().user?._id;
       const targetId = data?.targetCallerId || data?.callerId;
-      if (targetId && String(targetId) !== String(user._id)) {
+      if (targetId && myId && String(targetId) !== String(myId)) {
         return;
       }
       endCall();

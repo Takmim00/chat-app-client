@@ -15,7 +15,7 @@ const RTC_CONFIG: RTCConfiguration = {
     { urls: 'stun:stun4.l.google.com:19302' },
     { urls: 'stun:global.stun.twilio.com:3478' },
     
-    // TURN servers for cross-network / symmetric NAT / firewall traversal (relays media across different IPs & mobile networks)
+    // TURN Relay servers for cross-network / mobile 4G-5G / symmetric NAT & firewall traversal
     {
       urls: 'turn:openrelay.metered.ca:80',
       username: 'openrelayproject',
@@ -48,8 +48,8 @@ export const useWebRTC = () => {
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
   const iceCandidatesQueueRef = useRef<RTCIceCandidateInit[]>([]);
+  const processedCandidatesRef = useRef<Set<string>>(new Set());
   const partnerRef = useRef(partner);
-  // Track if user has clicked Accept before the WebRTC offer arrived
   const userAcceptedRef = useRef(false);
 
   useEffect(() => {
@@ -81,9 +81,29 @@ export const useWebRTC = () => {
     }
   }, [isSpeakerOn]);
 
+  // Clean local media stream tracks
+  const stopLocalMedia = useCallback(() => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => {
+        track.stop();
+      });
+      localStreamRef.current = null;
+    }
+  }, []);
+
+  // Get active local microphone media stream
   const getMedia = useCallback(async () => {
     try {
-      if (localStreamRef.current) return localStreamRef.current;
+      if (
+        localStreamRef.current &&
+        localStreamRef.current.active &&
+        localStreamRef.current.getAudioTracks().some((t) => t.readyState === 'live')
+      ) {
+        return localStreamRef.current;
+      }
+
+      stopLocalMedia();
+
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -92,75 +112,96 @@ export const useWebRTC = () => {
         },
         video: false,
       });
+
       localStreamRef.current = stream;
       return stream;
     } catch (err) {
       console.error('[WebRTC getMedia Error]:', err);
-      toast.error('Microphone permission required for voice calls. Check browser settings.');
+      toast.error('Microphone access is required for voice calls.');
       useCallStore.getState().resetCall();
       return null;
     }
+  }, [stopLocalMedia]);
+
+  // Close and cleanup RTCPeerConnection safely
+  const cleanupPeerConnection = useCallback(() => {
+    if (peerConnectionRef.current) {
+      console.log('[WebRTC] Closing existing Peer Connection');
+      peerConnectionRef.current.onicecandidate = null;
+      peerConnectionRef.current.ontrack = null;
+      peerConnectionRef.current.onconnectionstatechange = null;
+      peerConnectionRef.current.oniceconnectionstatechange = null;
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
+    pendingOfferRef.current = null;
+    iceCandidatesQueueRef.current = [];
+    processedCandidatesRef.current.clear();
+    userAcceptedRef.current = false;
   }, []);
 
-  const createPeerConnection = useCallback((targetUserId: string) => {
-    const pc = new RTCPeerConnection(RTC_CONFIG);
-    const socket = getSocket();
+  // Create new RTCPeerConnection instance
+  const createPeerConnection = useCallback(
+    (targetUserId: string) => {
+      // Close any existing connection first to prevent leak or ghost listeners
+      cleanupPeerConnection();
 
-    pc.onicecandidate = (event) => {
-      if (event.candidate && socket) {
-        console.log('[WebRTC Candidate] Type:', event.candidate.type, 'Protocol:', event.candidate.protocol, 'Emitting to:', targetUserId);
-        socket.emit('call:ice-candidate', {
-          to: targetUserId,
-          candidate: event.candidate,
-        });
-      }
-    };
+      const pc = new RTCPeerConnection(RTC_CONFIG);
+      const socket = getSocket();
 
-    pc.ontrack = (event) => {
-      console.log('[WebRTC Track Received]:', event.track, 'Streams:', event.streams);
-      // Fallback: Use event.streams[0] if present, or construct a new MediaStream from event.track
-      const remoteStream = (event.streams && event.streams[0]) ? event.streams[0] : new MediaStream([event.track]);
-      
-      if (remoteAudioRef.current) {
-        remoteAudioRef.current.srcObject = remoteStream;
-        remoteAudioRef.current.play().then(() => {
-          console.log('[WebRTC] Remote Audio Playing Successfully!');
-        }).catch((err) => {
-          console.warn('[WebRTC] Remote audio play error / autoplay restriction:', err);
-        });
-      }
-    };
-
-    pc.onconnectionstatechange = () => {
-      console.log('[WebRTC ConnectionStateChanged]:', pc.connectionState);
-      if (pc.connectionState === 'connected') {
-        console.log('[WebRTC] Peer connection ESTABLISHED successfully!');
-        if (remoteAudioRef.current) {
-          remoteAudioRef.current.play().catch(() => {});
+      pc.onicecandidate = (event) => {
+        if (event.candidate && socket) {
+          console.log('[WebRTC Candidate Generated] Type:', event.candidate.type, 'Protocol:', event.candidate.protocol);
+          socket.emit('call:ice-candidate', {
+            to: targetUserId,
+            candidate: event.candidate,
+          });
         }
-      } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-        console.warn('[WebRTC] Connection state is:', pc.connectionState);
-      }
-    };
+      };
 
-    pc.oniceconnectionstatechange = () => {
-      console.log('[WebRTC ICE StateChanged]:', pc.iceConnectionState);
-    };
+      pc.ontrack = (event) => {
+        console.log('[WebRTC Track Received]:', event.track, 'Streams:', event.streams);
+        const remoteStream = event.streams && event.streams[0] ? event.streams[0] : new MediaStream([event.track]);
 
-    peerConnectionRef.current = pc;
-    return pc;
-  }, []);
+        if (remoteAudioRef.current) {
+          remoteAudioRef.current.srcObject = remoteStream;
+          remoteAudioRef.current.play().then(() => {
+            console.log('[WebRTC] Remote Audio Stream Playing!');
+          }).catch((err) => {
+            console.warn('[WebRTC] Remote audio play error:', err);
+          });
+        }
+      };
+
+      pc.onconnectionstatechange = () => {
+        console.log('[WebRTC ConnectionStateChanged]:', pc.connectionState);
+        if (pc.connectionState === 'connected') {
+          console.log('[WebRTC] Voice Stream CONNECTED Successfully!');
+          if (remoteAudioRef.current) {
+            remoteAudioRef.current.play().catch(() => {});
+          }
+        } else if (pc.connectionState === 'failed') {
+          console.warn('[WebRTC] Peer connection failed. Restarting ICE...');
+          pc.restartIce();
+        }
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        console.log('[WebRTC ICE State]:', pc.iceConnectionState);
+      };
+
+      peerConnectionRef.current = pc;
+      return pc;
+    },
+    [cleanupPeerConnection]
+  );
 
   // Process the WebRTC answer on the receiver side
   const processAnswer = useCallback(async () => {
     const socket = getSocket();
     const currentPartner = partnerRef.current;
     if (!socket || !currentPartner || !pendingOfferRef.current) {
-      console.warn('[WebRTC processAnswer] Missing required data:', {
-        hasSocket: Boolean(socket),
-        hasPartner: Boolean(currentPartner),
-        hasOffer: Boolean(pendingOfferRef.current),
-      });
+      console.warn('[WebRTC processAnswer] Cannot process answer. Missing required objects.');
       return;
     }
 
@@ -174,7 +215,6 @@ export const useWebRTC = () => {
         return;
       }
 
-      // Pre-unlock remote audio element on user accept click
       if (remoteAudioRef.current) {
         remoteAudioRef.current.play().catch(() => {});
       }
@@ -186,19 +226,23 @@ export const useWebRTC = () => {
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
-      // Flush queued ICE candidates
+      // Flush queued ICE candidates cleanly (deduplicated)
       while (iceCandidatesQueueRef.current.length > 0) {
         const cand = iceCandidatesQueueRef.current.shift();
-        if (cand) {
-          await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+        if (cand && cand.candidate) {
+          const candKey = cand.candidate;
+          if (!processedCandidatesRef.current.has(candKey)) {
+            processedCandidatesRef.current.add(candKey);
+            await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+          }
         }
       }
 
       socket.emit('call:answer', { to: currentPartner._id, answer });
-      console.log('[WebRTC] Answer created & sent successfully');
+      console.log('[WebRTC] Answer generated & emitted successfully');
     } catch (err) {
       console.error('[WebRTC] Error processing answer:', err);
-      toast.error('Failed to connect call. Please try again.');
+      toast.error('Failed to establish voice call stream.');
       useCallStore.getState().endCall();
     }
   }, [getMedia, createPeerConnection]);
@@ -212,9 +256,9 @@ export const useWebRTC = () => {
       console.log('[WebRTC] Received Call Offer from:', data.from);
       pendingOfferRef.current = data.offer;
 
-      // If user already clicked Accept before the offer arrived, process the answer now
+      // If user already accepted the call before offer arrived, process answer now
       if (userAcceptedRef.current) {
-        console.log('[WebRTC] User already accepted — processing answer now');
+        console.log('[WebRTC] User accepted prior to offer arrival — answering now');
         userAcceptedRef.current = false;
         await processAnswer();
       }
@@ -226,34 +270,44 @@ export const useWebRTC = () => {
       if (pc && pc.signalingState !== 'stable') {
         await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
 
-        // Flush any queued ICE candidates on the caller side
+        // Flush queued ICE candidates on caller side
         while (iceCandidatesQueueRef.current.length > 0) {
           const cand = iceCandidatesQueueRef.current.shift();
-          if (cand) {
-            await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+          if (cand && cand.candidate) {
+            const candKey = cand.candidate;
+            if (!processedCandidatesRef.current.has(candKey)) {
+              processedCandidatesRef.current.add(candKey);
+              await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+            }
           }
         }
 
-        // Try to unlock/play remote audio
         if (remoteAudioRef.current) {
           remoteAudioRef.current.play().catch(() => {});
         }
 
-        // acceptCall is idempotent — safe to call even if already connected
         acceptCall();
       }
     };
 
     const handleIceCandidate = async (data: any) => {
-      console.log('[WebRTC] Received ICE candidate from:', data.from);
+      if (!data?.candidate?.candidate) return;
+      const candKey = data.candidate.candidate;
+      
+      // Deduplicate identical ICE candidates
+      if (processedCandidatesRef.current.has(candKey)) {
+        return;
+      }
+
       const pc = peerConnectionRef.current;
       if (pc && pc.remoteDescription && pc.remoteDescription.type) {
         try {
+          processedCandidatesRef.current.add(candKey);
           await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
         } catch (e) {
           console.error('[WebRTC] Error adding ICE candidate:', e);
         }
-      } else if (data?.candidate) {
+      } else {
         iceCandidatesQueueRef.current.push(data.candidate);
       }
     };
@@ -276,28 +330,24 @@ export const useWebRTC = () => {
     const currentUser = user || useAuthStore.getState().user;
 
     if (!socket || !currentPartner || !currentUser) {
-      console.warn('[WebRTC startCall] Cannot initiate call. Missing parameters:', {
-        hasSocket: Boolean(socket),
-        currentPartner,
-        currentUser,
-      });
+      console.warn('[WebRTC startCall] Missing parameters for startCall');
       return;
     }
 
     console.log('[WebRTC] Initiating Call to partner:', currentPartner.name, 'ID:', currentPartner._id);
-    
-    // 1. Pre-unlock remote audio element on user click
+
     if (remoteAudioRef.current) {
       remoteAudioRef.current.play().catch(() => {});
     }
 
-    // 2. Emit call:initiate IMMEDIATELY so recipient receives incoming call modal instantly!
+    // 1. Emit call:initiate
     socket.emit('call:initiate', { receiverId: currentPartner._id, callerInfo: currentUser });
 
-    // 3. Get microphone media and generate WebRTC offer
+    // 2. Get local microphone stream
     const stream = await getMedia();
     if (!stream) return;
 
+    // 3. Create peer connection and offer
     const pc = createPeerConnection(currentPartner._id);
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
@@ -309,25 +359,22 @@ export const useWebRTC = () => {
     socket.emit('call:offer', { to: currentPartner._id, offer });
   };
 
-  // Answer Call (Receiver side) — called when user clicks Accept
+  // Answer Call (Receiver side)
   const answerCall = async () => {
     const socket = getSocket();
     const currentPartner = partnerRef.current;
     if (!socket || !currentPartner) return;
 
-    // Pre-unlock remote audio element on user accept click
     if (remoteAudioRef.current) {
       remoteAudioRef.current.play().catch(() => {});
     }
 
-    // If the WebRTC offer hasn't arrived yet, set a flag and process when it arrives
     if (!pendingOfferRef.current) {
-      console.log('[WebRTC] Offer not yet received — marking accepted, will process when offer arrives');
+      console.log('[WebRTC] Offer pending — marked accepted for auto-answer');
       userAcceptedRef.current = true;
       return;
     }
 
-    // Offer is available — process the answer immediately
     await processAnswer();
   };
 
@@ -340,24 +387,15 @@ export const useWebRTC = () => {
     }
   }, [isMuted]);
 
-  // Cleanup WebRTC connection on call end
+  // Cleanup WebRTC connection on call end or idle
   useEffect(() => {
     if (callStatus === 'idle' || callStatus === 'ended') {
-      if (peerConnectionRef.current) {
-        peerConnectionRef.current.close();
-        peerConnectionRef.current = null;
-      }
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((track) => track.stop());
-        localStreamRef.current = null;
-      }
-      pendingOfferRef.current = null;
-      iceCandidatesQueueRef.current = [];
-      userAcceptedRef.current = false;
+      cleanupPeerConnection();
+      stopLocalMedia();
     }
-  }, [callStatus]);
+  }, [callStatus, cleanupPeerConnection, stopLocalMedia]);
 
-  // Register global WebRTC action refs cleanly without triggering Zustand re-renders
+  // Register global WebRTC action refs
   useEffect(() => {
     callWebRTCRef.startCallFn = startCall;
     callWebRTCRef.answerCallFn = answerCall;
