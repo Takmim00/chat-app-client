@@ -16,12 +16,15 @@ const RTC_CONFIG: RTCConfiguration = {
     { urls: 'stun:stun.services.mozilla.com' },
     { urls: 'stun:global.stun.twilio.com:3478' },
 
-    // TURN relay servers — cross-network (different Wi-Fi / 4G / 5G / firewall)
+    // TURN relay servers — cross-network (different Wi-Fi / 4G / 5G / firewall / NAT)
     {
       urls: [
         'turn:openrelay.metered.ca:80',
         'turn:openrelay.metered.ca:443',
         'turn:openrelay.metered.ca:443?transport=tcp',
+        'turn:global.relay.metered.ca:80',
+        'turn:global.relay.metered.ca:443',
+        'turn:global.relay.metered.ca:443?transport=tcp',
       ],
       username: 'openrelayproject',
       credential: 'openrelayproject',
@@ -29,6 +32,7 @@ const RTC_CONFIG: RTCConfiguration = {
     {
       urls: [
         'turns:openrelay.metered.ca:443?transport=tcp',
+        'turns:global.relay.metered.ca:443?transport=tcp',
       ],
       username: 'openrelayproject',
       credential: 'openrelayproject',
@@ -38,10 +42,14 @@ const RTC_CONFIG: RTCConfiguration = {
 };
 
 let globalRemoteAudio: HTMLAudioElement | null = null;
+let globalAudioCtx: AudioContext | null = null;
 
 export const unlockAudioPlayback = () => {
   if (globalRemoteAudio) {
     globalRemoteAudio.play().catch(() => {});
+  }
+  if (globalAudioCtx && globalAudioCtx.state === 'suspended') {
+    globalAudioCtx.resume().catch(() => {});
   }
 };
 
@@ -52,6 +60,9 @@ export const useWebRTC = () => {
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+
   const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
   const iceCandidatesQueueRef = useRef<RTCIceCandidateInit[]>([]);
   const processedCandidatesRef = useRef<Set<string>>(new Set());
@@ -64,7 +75,7 @@ export const useWebRTC = () => {
     partnerRef.current = partner;
   }, [partner]);
 
-  // ── Remote Audio Element Setup ──────────────────────────────────────────────
+  // ── Remote Audio Setup (HTML5 Audio + WebAudio API dual playback) ─────────────
   useEffect(() => {
     if (typeof window !== 'undefined' && !remoteAudioRef.current) {
       const audio = document.createElement('audio');
@@ -75,11 +86,29 @@ export const useWebRTC = () => {
       remoteAudioRef.current = audio;
       globalRemoteAudio = audio;
     }
+
+    try {
+      if (typeof window !== 'undefined' && !audioCtxRef.current) {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtx) {
+          audioCtxRef.current = new AudioCtx();
+          globalAudioCtx = audioCtxRef.current;
+        }
+      }
+    } catch (e) {
+      console.warn('[WebAudio] AudioContext init warning:', e);
+    }
+
     return () => {
       if (remoteAudioRef.current) {
         remoteAudioRef.current.remove();
         remoteAudioRef.current = null;
         globalRemoteAudio = null;
+      }
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close().catch(() => {});
+        audioCtxRef.current = null;
+        globalAudioCtx = null;
       }
     };
   }, []);
@@ -141,7 +170,10 @@ export const useWebRTC = () => {
       peerConnectionRef.current.close();
       peerConnectionRef.current = null;
     }
-    // Note: Do NOT clear pendingOfferRef here, as processAnswer needs it right after cleanup
+    if (audioSourceRef.current) {
+      audioSourceRef.current.disconnect();
+      audioSourceRef.current = null;
+    }
     localDescriptionRef.current = null;
     iceCandidatesQueueRef.current = [];
     processedCandidatesRef.current.clear();
@@ -150,6 +182,37 @@ export const useWebRTC = () => {
   }, []);
 
   const getActiveSocket = useCallback(() => getSocket(), []);
+
+  const attachStreamToSpeaker = useCallback((remoteStream: MediaStream) => {
+    // 1. Play via HTML5 Audio element
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.srcObject = remoteStream;
+      remoteAudioRef.current.muted = !useCallStore.getState().isSpeakerOn;
+      remoteAudioRef.current.play().then(() => {
+        console.log('[WebRTC] ✅ Remote audio playing via HTML5 Audio Element!');
+      }).catch((err) => {
+        console.warn('[WebRTC] HTML5 Audio play error:', err);
+      });
+    }
+
+    // 2. Dual playback via WebAudio API destination for maximum hardware speaker reliability
+    try {
+      const ctx = audioCtxRef.current;
+      if (ctx) {
+        if (ctx.state === 'suspended') {
+          ctx.resume().catch(() => {});
+        }
+        if (audioSourceRef.current) {
+          audioSourceRef.current.disconnect();
+        }
+        audioSourceRef.current = ctx.createMediaStreamSource(remoteStream);
+        audioSourceRef.current.connect(ctx.destination);
+        console.log('[WebAudio] ✅ Remote audio connected to AudioContext destination!');
+      }
+    } catch (e) {
+      console.warn('[WebAudio] Connection to destination warning:', e);
+    }
+  }, []);
 
   const createPeerConnection = useCallback(
     (targetUserId: string) => {
@@ -173,37 +236,21 @@ export const useWebRTC = () => {
       pc.ontrack = (event) => {
         console.log('[WebRTC Track Received]:', event.track.kind, event.streams);
         const remoteStream = event.streams?.[0] ?? new MediaStream([event.track]);
+        attachStreamToSpeaker(remoteStream);
 
-        if (remoteAudioRef.current) {
-          remoteAudioRef.current.srcObject = remoteStream;
-          remoteAudioRef.current.muted = !useCallStore.getState().isSpeakerOn;
-
-          const playAudio = () => {
-            remoteAudioRef.current?.play().then(() => {
-              console.log('[WebRTC] ✅ Remote audio stream playing successfully!');
-            }).catch((err) => {
-              console.warn('[WebRTC] Remote audio play error (browser policy):', err);
-            });
-          };
-
-          playAudio();
-
-          event.track.onunmute = () => {
-            console.log('[WebRTC] Track unmuted — playing audio');
-            playAudio();
-          };
-        }
+        event.track.onunmute = () => {
+          console.log('[WebRTC] Track unmuted — re-triggering speaker attach');
+          attachStreamToSpeaker(remoteStream);
+        };
       };
 
       pc.onconnectionstatechange = () => {
-        console.log('[WebRTC] Connection state:', pc.connectionState);
+        console.log('[WebRTC] Connection state changed:', pc.connectionState);
         if (pc.connectionState === 'connected') {
-          console.log('[WebRTC] ✅ Voice P2P stream CONNECTED!');
-          if (remoteAudioRef.current) {
-            remoteAudioRef.current.play().catch(() => {});
-          }
+          console.log('[WebRTC] ✅ Voice P2P stream CONNECTED successfully!');
+          unlockAudioPlayback();
         } else if (pc.connectionState === 'failed') {
-          console.warn('[WebRTC] Connection failed — restarting ICE');
+          console.warn('[WebRTC] Connection failed — restarting ICE...');
           pc.restartIce();
         }
       };
@@ -215,7 +262,7 @@ export const useWebRTC = () => {
       peerConnectionRef.current = pc;
       return pc;
     },
-    [cleanupPeerConnection, getActiveSocket]
+    [cleanupPeerConnection, getActiveSocket, attachStreamToSpeaker]
   );
 
   // ── Socket reconnect: re-send pending call signals ─────────────────────────
@@ -349,7 +396,7 @@ export const useWebRTC = () => {
           });
           await pc.setRemoteDescription(sessionDesc);
           await flushCandidateQueue(pc);
-          remoteAudioRef.current?.play().catch(() => {});
+          unlockAudioPlayback();
           useCallStore.getState().acceptCall();
         } catch (err) {
           console.error('[WebRTC] Error handling answer:', err);
