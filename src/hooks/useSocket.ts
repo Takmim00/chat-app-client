@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useChatStore } from '@/store/useChatStore';
@@ -7,90 +7,123 @@ import { toast } from 'sonner';
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5000';
 
+// Single global socket instance — persists across component re-renders and effect cycles
 let socket: Socket | null = null;
+let currentSocketUserId: string | null = null;
 
 export const getSocket = (): Socket | null => socket;
 
+// Helper to create a fresh socket connection and join server rooms
+function createSocket(token: string): Socket {
+  // Ensure any existing socket is fully disconnected first
+  if (socket) {
+    socket.removeAllListeners();
+    socket.disconnect();
+    socket = null;
+    currentSocketUserId = null;
+  }
+
+  const newSocket = io(SOCKET_URL, {
+    auth: { token },
+    transports: ['websocket', 'polling'],
+    reconnection: true,
+    reconnectionAttempts: 10,
+    reconnectionDelay: 2000,
+    timeout: 10000,
+  });
+
+  socket = newSocket;
+  return newSocket;
+}
+
 export const useSocket = () => {
   const { user, token } = useAuthStore();
-  const { addMessage, setTyping } = useChatStore();
-  const { receiveCall, acceptCall, endCall } = useCallStore();
 
+  // useRef for store actions so they never trigger re-renders or effect re-runs
+  const addMessageRef = useRef(useChatStore.getState().addMessage);
+  const setTypingRef = useRef(useChatStore.getState().setTyping);
+
+  // Keep refs up to date without triggering re-renders
+  useEffect(() => {
+    const unsubChat = useChatStore.subscribe((state) => {
+      addMessageRef.current = state.addMessage;
+      setTypingRef.current = state.setTyping;
+    });
+    return unsubChat;
+  }, []);
+
+  // Effect ONLY depends on user._id and token — Zustand function refs never change
   useEffect(() => {
     if (!user || !token) {
+      // Disconnect if logged out
       if (socket) {
+        socket.removeAllListeners();
         socket.disconnect();
         socket = null;
+        currentSocketUserId = null;
       }
       return;
     }
 
-    // Create socket if needed
-    if (!socket || !socket.connected) {
-      socket = io(SOCKET_URL, {
-        auth: { token },
-        transports: ['websocket', 'polling'],
-        reconnection: true,
-        reconnectionAttempts: 20,
-        reconnectionDelay: 1000,
-      });
-
-      socket.on('connect', () => {
-        console.log('[Socket] Connected as user:', user._id, 'socketId:', socket?.id);
-      });
-
-      socket.on('reconnect', () => {
-        console.log('[Socket] Reconnected as user:', user._id, 'socketId:', socket?.id);
-      });
+    // If already connected as this user, do NOT recreate socket
+    if (socket && socket.connected && currentSocketUserId === user._id) {
+      return;
     }
 
-    // Direct Message Receive
-    const handleDirectMessage = (message: any) => {
-      console.log('[Socket Direct Message Received]:', message);
-      addMessage(message);
+    // Create (or recreate) socket connection for this user
+    const s = createSocket(token);
+    currentSocketUserId = user._id;
+
+    s.on('connect', () => {
+      console.log('[Socket] Connected | user:', user._id, '| socketId:', s.id);
+    });
+
+    s.on('connect_error', (err) => {
+      console.error('[Socket] Connection error:', err.message);
+    });
+
+    s.on('disconnect', (reason) => {
+      console.log('[Socket] Disconnected | reason:', reason);
+    });
+
+    // ─── Direct Message ───────────────────────────────────────────
+    s.on('message:receive', (message: any) => {
+      addMessageRef.current(message);
       toast.info(`New message from ${message.senderId?.name || 'Friend'}`);
-    };
+    });
 
-    // Group Message Receive
-    const handleGroupMessage = ({ message }: any) => {
-      console.log('[Socket Group Message Received]:', message);
-      addMessage(message);
-      toast.info(`New group message`);
-    };
+    // ─── Group Message ────────────────────────────────────────────
+    s.on('group:message-receive', ({ message }: any) => {
+      addMessageRef.current(message);
+      toast.info('New group message');
+    });
 
-    // Friend Real-Time Events
-    const handleFriendAccepted = () => {
-      toast.success('Friend request accepted! Friend added to your chat list.');
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event('friends:updated'));
-      }
-    };
+    // ─── Friend Events ────────────────────────────────────────────
+    s.on('friend:accepted', () => {
+      toast.success('Friend request accepted!');
+      window.dispatchEvent(new Event('friends:updated'));
+    });
 
-    const handleFriendRequestReceived = () => {
+    s.on('friend:request-received', () => {
       toast.info('You received a new friend request!');
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event('friend-requests:updated'));
-      }
-    };
+      window.dispatchEvent(new Event('friend-requests:updated'));
+    });
 
-    // Typing Indicators
-    const handleTypingStart = ({ senderId }: any) => setTyping(senderId, true);
-    const handleTypingStop = ({ senderId }: any) => setTyping(senderId, false);
-    const handleGroupTyping = ({ userId, isTyping }: any) => setTyping(userId, isTyping);
+    // ─── Typing Indicators ────────────────────────────────────────
+    s.on('typing:start', ({ senderId }: any) => setTypingRef.current(senderId, true));
+    s.on('typing:stop', ({ senderId }: any) => setTypingRef.current(senderId, false));
+    s.on('group:typing', ({ userId, isTyping }: any) => setTypingRef.current(userId, isTyping));
 
-    // 1-to-1 Calling Events
-    const handleIncomingCall = (data: any) => {
-      console.log('[Socket] *** INCOMING CALL EVENT ***', JSON.stringify(data));
+    // ─── Calling Events — always read FRESH state from Zustand store ───
+    s.on('call:incoming', (data: any) => {
+      console.log('[Socket] *** call:incoming ***', JSON.stringify(data));
 
-      // Since server only emits to targeted user (no broadcast), skip strict ID filtering
-      // Just ensure we're not already in a call
       const currentStatus = useCallStore.getState().callStatus;
       if (currentStatus !== 'idle') {
-        console.log('[Socket] Already in a call, ignoring incoming call. Status:', currentStatus);
+        console.log('[Socket] Already in a call — ignoring incoming. Status:', currentStatus);
         return;
       }
 
-      // Build a caller object with guaranteed name field to prevent UI crash
       const rawCaller = data?.callerInfo || {};
       const caller = {
         _id: rawCaller._id || data?.callerId || 'unknown',
@@ -100,74 +133,45 @@ export const useSocket = () => {
         profilePic: rawCaller.profilePic || '',
         friendId: rawCaller.friendId || '',
       };
-      console.log('[Socket] Showing incoming call from:', caller.name, 'ID:', caller._id);
-      receiveCall(caller);
+      console.log('[Socket] Incoming call from:', caller.name, 'ID:', caller._id);
+      useCallStore.getState().receiveCall(caller);
       toast.info(`Incoming Voice Call from ${caller.name}`);
-    };
+    });
 
-    const handleCallAccepted = (data: any) => {
-      console.log('[Socket] Call Accepted event:', data);
-      const myId = user?._id || useAuthStore.getState().user?._id;
+    s.on('call:accepted', (data: any) => {
+      console.log('[Socket] call:accepted', data);
+      const myId = useAuthStore.getState().user?._id;
       const targetId = data?.targetCallerId || data?.callerId;
-      if (targetId && myId && String(targetId) !== String(myId)) {
-        return;
-      }
-      console.log('[Socket] Call was accepted by recipient');
-      acceptCall();
-    };
+      if (targetId && myId && String(targetId) !== String(myId)) return;
+      useCallStore.getState().acceptCall();
+    });
 
-    const handleCallEnded = (data: any) => {
-      console.log('[Socket] Call Ended event:', data);
-      const myId = user?._id || useAuthStore.getState().user?._id;
+    s.on('call:ended', (data: any) => {
+      console.log('[Socket] call:ended', data);
+      const myId = useAuthStore.getState().user?._id;
       const targetId = data?.targetPartnerId || data?.partnerId || data?.receiverId;
-      if (targetId && myId && String(targetId) !== String(myId)) {
-        return;
-      }
-      const currentCallStatus = useCallStore.getState().callStatus;
-      if (currentCallStatus === 'idle') return;
-      endCall();
+      if (targetId && myId && String(targetId) !== String(myId)) return;
+      const status = useCallStore.getState().callStatus;
+      if (status === 'idle') return;
+      useCallStore.getState().endCall();
       toast.info('Call ended by partner.');
-    };
+    });
 
-    const handleCallRejected = (data: any) => {
-      console.log('[Socket] Call Rejected event:', data);
-      const myId = user?._id || useAuthStore.getState().user?._id;
+    s.on('call:rejected', (data: any) => {
+      console.log('[Socket] call:rejected', data);
+      const myId = useAuthStore.getState().user?._id;
       const targetId = data?.targetCallerId || data?.callerId;
-      if (targetId && myId && String(targetId) !== String(myId)) {
-        return;
-      }
-      endCall();
+      if (targetId && myId && String(targetId) !== String(myId)) return;
+      useCallStore.getState().endCall();
       toast.warning('Call was rejected.');
-    };
+    });
 
-    socket.on('message:receive', handleDirectMessage);
-    socket.on('group:message-receive', handleGroupMessage);
-    socket.on('friend:accepted', handleFriendAccepted);
-    socket.on('friend:request-received', handleFriendRequestReceived);
-    socket.on('typing:start', handleTypingStart);
-    socket.on('typing:stop', handleTypingStop);
-    socket.on('group:typing', handleGroupTyping);
-    socket.on('call:incoming', handleIncomingCall);
-    socket.on('call:accepted', handleCallAccepted);
-    socket.on('call:ended', handleCallEnded);
-    socket.on('call:rejected', handleCallRejected);
-
+    // Cleanup: remove ALL listeners only (don't disconnect on dependency changes)
     return () => {
-      if (socket) {
-        socket.off('message:receive', handleDirectMessage);
-        socket.off('group:message-receive', handleGroupMessage);
-        socket.off('friend:accepted', handleFriendAccepted);
-        socket.off('friend:request-received', handleFriendRequestReceived);
-        socket.off('typing:start', handleTypingStart);
-        socket.off('typing:stop', handleTypingStop);
-        socket.off('group:typing', handleGroupTyping);
-        socket.off('call:incoming', handleIncomingCall);
-        socket.off('call:accepted', handleCallAccepted);
-        socket.off('call:ended', handleCallEnded);
-        socket.off('call:rejected', handleCallRejected);
-      }
+      s.removeAllListeners();
     };
-  }, [user?._id, token, addMessage, setTyping, receiveCall, acceptCall, endCall]);
+
+  }, [user?._id, token]); // Only user._id and token — no Zustand functions in deps
 
   return { socket };
 };
