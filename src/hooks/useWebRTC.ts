@@ -39,6 +39,8 @@ const RTC_CONFIG: RTCConfiguration = {
     },
   ],
   iceCandidatePoolSize: 10,
+  bundlePolicy: 'max-bundle',
+  rtcpMuxPolicy: 'require',
 };
 
 let globalRemoteAudio: HTMLAudioElement | null = null;
@@ -75,7 +77,7 @@ export const useWebRTC = () => {
     partnerRef.current = partner;
   }, [partner]);
 
-  // ── Remote Audio Setup (HTML5 Audio + WebAudio API dual playback) ─────────────
+  // ── Remote Audio Setup ──────────────────────────────────────────────────────
   useEffect(() => {
     if (typeof window !== 'undefined' && !remoteAudioRef.current) {
       const audio = document.createElement('audio');
@@ -184,7 +186,6 @@ export const useWebRTC = () => {
   const getActiveSocket = useCallback(() => getSocket(), []);
 
   const attachStreamToSpeaker = useCallback((remoteStream: MediaStream) => {
-    // 1. Play via HTML5 Audio element
     if (remoteAudioRef.current) {
       remoteAudioRef.current.srcObject = remoteStream;
       remoteAudioRef.current.muted = !useCallStore.getState().isSpeakerOn;
@@ -195,7 +196,6 @@ export const useWebRTC = () => {
       });
     }
 
-    // 2. Dual playback via WebAudio API destination for maximum hardware speaker reliability
     try {
       const ctx = audioCtxRef.current;
       if (ctx) {
@@ -250,8 +250,14 @@ export const useWebRTC = () => {
           console.log('[WebRTC] ✅ Voice P2P stream CONNECTED successfully!');
           unlockAudioPlayback();
         } else if (pc.connectionState === 'failed') {
-          console.warn('[WebRTC] Connection failed — restarting ICE...');
-          pc.restartIce();
+          console.warn('[WebRTC] Connection failed. Cleaning up call state...');
+          const partnerId = peerPartnerIdRef.current;
+          const s = getActiveSocket();
+          if (s && partnerId) {
+            s.emit('call:end', { partnerId });
+          }
+          useCallStore.getState().endCall();
+          toast.error('Voice call connection lost.');
         }
       };
 
@@ -306,9 +312,13 @@ export const useWebRTC = () => {
   const flushCandidateQueue = useCallback(async (pc: RTCPeerConnection) => {
     while (iceCandidatesQueueRef.current.length > 0) {
       const cand = iceCandidatesQueueRef.current.shift();
-      if (cand?.candidate && !processedCandidatesRef.current.has(cand.candidate)) {
-        processedCandidatesRef.current.add(cand.candidate);
-        await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+      if (!cand) continue;
+      const candObj = typeof cand === 'string' ? JSON.parse(cand) : cand;
+      const candKey = candObj?.candidate || JSON.stringify(candObj);
+
+      if (candObj && !processedCandidatesRef.current.has(candKey)) {
+        processedCandidatesRef.current.add(candKey);
+        await pc.addIceCandidate(new RTCIceCandidate(candObj)).catch(() => {});
       }
     }
   }, []);
@@ -327,7 +337,6 @@ export const useWebRTC = () => {
     try {
       unlockAudioPlayback();
 
-      // Safely parse offer object before createPeerConnection touches anything
       const offerObj = typeof rawOffer === 'string' ? JSON.parse(rawOffer) : rawOffer;
       if (!offerObj || (!offerObj.sdp && !offerObj.type)) {
         throw new Error('Invalid SDP offer structure received');
@@ -341,22 +350,17 @@ export const useWebRTC = () => {
       const stream = await getMedia();
       if (!stream) { useCallStore.getState().endCall(); return; }
 
-      // Create new PC instance
       const pc = createPeerConnection(currentPartner._id);
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
-      // Set remote description (caller's offer)
       await pc.setRemoteDescription(sessionDescription);
 
-      // Create answer
       const answer = await pc.createAnswer({ offerToReceiveAudio: true });
       await pc.setLocalDescription(answer);
       localDescriptionRef.current = answer;
 
-      // Flush ICE candidates
       await flushCandidateQueue(pc);
 
-      // Emit clean answer object
       const answerPayload = typeof (answer as any).toJSON === 'function'
         ? (answer as any).toJSON()
         : { type: answer.type, sdp: answer.sdp };
@@ -405,16 +409,19 @@ export const useWebRTC = () => {
     };
 
     const handleIceCandidate = async (data: any) => {
-      if (!data?.candidate?.candidate) return;
-      const candKey = data.candidate.candidate;
+      if (!data?.candidate) return;
+      const candObj = typeof data.candidate === 'string' ? JSON.parse(data.candidate) : data.candidate;
+      if (!candObj?.candidate) return;
+
+      const candKey = candObj.candidate;
       if (processedCandidatesRef.current.has(candKey)) return;
 
       const pc = peerConnectionRef.current;
       if (pc && pc.remoteDescription?.type) {
         processedCandidatesRef.current.add(candKey);
-        await pc.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(console.error);
+        await pc.addIceCandidate(new RTCIceCandidate(candObj)).catch(console.error);
       } else {
-        iceCandidatesQueueRef.current.push(data.candidate);
+        iceCandidatesQueueRef.current.push(candObj);
       }
     };
 
