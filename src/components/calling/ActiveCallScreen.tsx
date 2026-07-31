@@ -113,7 +113,7 @@ export const ActiveCallScreen: React.FC = () => {
           turnOnMicrophoneWhenJoining: true,
           showMyCameraToggleButton: isVideo,
           showMyMicrophoneToggleButton: true,
-          showAudioVideoSettingsButton: true,
+          showAudioVideoSettingsButton: isVideo,
           showScreenSharingButton: isVideo,
           showTextChat: false,
           showUserList: false,

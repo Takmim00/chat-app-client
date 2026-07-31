@@ -67,7 +67,7 @@ export const GroupCallScreen: React.FC = () => {
           turnOnMicrophoneWhenJoining: true,
           showMyCameraToggleButton: false,
           showMyMicrophoneToggleButton: true,
-          showAudioVideoSettingsButton: true,
+          showAudioVideoSettingsButton: false,
           showScreenSharingButton: false,
           showTextChat: false,
           showUserList: true,
