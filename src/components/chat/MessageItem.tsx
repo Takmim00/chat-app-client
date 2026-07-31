@@ -7,6 +7,7 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { useChatStore } from '@/store/useChatStore';
 import { useCallStore, callWebRTCRef } from '@/store/useCallStore';
 import { fetchApi } from '@/lib/api';
+import { VoicePlayer } from './VoicePlayer';
 import {
   Pin,
   Reply,
@@ -246,8 +247,8 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
                     <img src={message.fileUrl} alt="attachment" className="max-w-xs rounded-xl border border-slate-700/50 shadow-md" />
                   ) : (message.type === 'video' || message.fileUrl.match(/\.(mp4|webm|ogg)/i)) ? (
                     <video src={message.fileUrl} controls className="max-w-xs rounded-xl shadow-md" />
-                  ) : (message.type === 'audio' || message.fileUrl.match(/\.(mp3|wav|ogg)/i)) ? (
-                    <audio src={message.fileUrl} controls className="w-full max-w-xs mt-1" />
+                  ) : (message.type === 'audio' || message.fileUrl.match(/\.(mp3|wav|ogg|m4a|webm)/i) || message.fileUrl.startsWith('data:audio/')) ? (
+                    <VoicePlayer src={message.fileUrl} isMe={isMe} />
                   ) : (
                     <a
                       href={message.fileUrl}

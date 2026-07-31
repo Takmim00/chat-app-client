@@ -4,14 +4,16 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { fetchApi } from '@/lib/api';
 import { useAuthStore } from '@/store/useAuthStore';
 import { CallLog } from '@/types';
-import { Phone, PhoneIncoming, PhoneOutgoing, PhoneMissed, Clock, RefreshCw } from 'lucide-react';
+import { Phone, PhoneIncoming, PhoneOutgoing, PhoneMissed, Clock, RefreshCw, Bell } from 'lucide-react';
 import { formatDate, formatTime } from '@/lib/utils';
 import { getSocket } from '@/hooks/useSocket';
+import { RingtoneSelectorModal } from '@/components/calling/RingtoneSelectorModal';
 
 export const CallHistory: React.FC = () => {
   const { user } = useAuthStore();
   const [logs, setLogs] = useState<CallLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRingtoneModalOpen, setIsRingtoneModalOpen] = useState(false);
 
   const fetchLogs = useCallback(async () => {
     try {
@@ -69,15 +71,29 @@ export const CallHistory: React.FC = () => {
         <h3 className="text-lg font-bold text-white flex items-center gap-2">
           <Phone className="w-5 h-5 text-indigo-400" /> Call History
         </h3>
-        <button
-          onClick={fetchLogs}
-          disabled={isLoading}
-          className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
-          title="Refresh"
-        >
-          <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setIsRingtoneModalOpen(true)}
+            className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded-lg transition-colors"
+            title="Ringtone Settings"
+          >
+            <Bell className="w-4 h-4" />
+          </button>
+          <button
+            onClick={fetchLogs}
+            disabled={isLoading}
+            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+            title="Refresh"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </div>
+
+      <RingtoneSelectorModal
+        isOpen={isRingtoneModalOpen}
+        onClose={() => setIsRingtoneModalOpen(false)}
+      />
 
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
         {isLoading ? (

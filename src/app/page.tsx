@@ -6,6 +6,7 @@ import { useChatStore } from '@/store/useChatStore';
 import { useGroupStore } from '@/store/useGroupStore';
 import { useSocket } from '@/hooks/useSocket';
 import { useWebRTC } from '@/hooks/useWebRTC';
+import { useCallRingtone } from '@/hooks/useCallRingtone';
 import { OtpLoginForm } from '@/components/auth/OtpLoginForm';
 import { Sidebar } from '@/components/sidebar/Sidebar';
 import { ConversationList } from '@/components/sidebar/ConversationList';
@@ -32,9 +33,10 @@ export default function Home() {
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
   const [isGroupSettingsOpen, setIsGroupSettingsOpen] = useState(false);
 
-  // Initialize socket & WebRTC connections globally
+  // Initialize socket, WebRTC & Ringtone sound engine globally
   useSocket();
   useWebRTC();
+  useCallRingtone();
 
   useEffect(() => {
     fetchProfile();
