@@ -13,9 +13,8 @@ let currentSocketUserId: string | null = null;
 
 export const getSocket = (): Socket | null => socket;
 
-// Helper to create a fresh socket connection and join server rooms
+// Creates a brand new socket, evicting any previous one
 function createSocket(token: string): Socket {
-  // Ensure any existing socket is fully disconnected first
   if (socket) {
     socket.removeAllListeners();
     socket.disconnect();
@@ -27,9 +26,10 @@ function createSocket(token: string): Socket {
     auth: { token },
     transports: ['websocket', 'polling'],
     reconnection: true,
-    reconnectionAttempts: 10,
-    reconnectionDelay: 2000,
-    timeout: 10000,
+    reconnectionAttempts: Infinity,   // Keep trying forever
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    timeout: 20000,
   });
 
   socket = newSocket;
@@ -39,23 +39,21 @@ function createSocket(token: string): Socket {
 export const useSocket = () => {
   const { user, token } = useAuthStore();
 
-  // useRef for store actions so they never trigger re-renders or effect re-runs
+  // Stable refs for store callbacks — never triggers re-renders or effect cycles
   const addMessageRef = useRef(useChatStore.getState().addMessage);
   const setTypingRef = useRef(useChatStore.getState().setTyping);
 
-  // Keep refs up to date without triggering re-renders
   useEffect(() => {
-    const unsubChat = useChatStore.subscribe((state) => {
+    const unsub = useChatStore.subscribe((state) => {
       addMessageRef.current = state.addMessage;
       setTypingRef.current = state.setTyping;
     });
-    return unsubChat;
+    return unsub;
   }, []);
 
-  // Effect ONLY depends on user._id and token — Zustand function refs never change
+  // ── ONLY depends on user._id + token — no Zustand functions ────────────────
   useEffect(() => {
     if (!user || !token) {
-      // Disconnect if logged out
       if (socket) {
         socket.removeAllListeners();
         socket.disconnect();
@@ -65,56 +63,59 @@ export const useSocket = () => {
       return;
     }
 
-    // If already connected as this user, do NOT recreate socket
+    // Already connected as this user — don't recreate
     if (socket && socket.connected && currentSocketUserId === user._id) {
       return;
     }
 
-    // Create (or recreate) socket connection for this user
     const s = createSocket(token);
     currentSocketUserId = user._id;
 
+    // ── Connection lifecycle ──────────────────────────────────────────────────
     s.on('connect', () => {
       console.log('[Socket] Connected | user:', user._id, '| socketId:', s.id);
     });
 
     s.on('connect_error', (err) => {
-      console.error('[Socket] Connection error:', err.message);
+      console.warn('[Socket] Connection error:', err.message);
     });
 
     s.on('disconnect', (reason) => {
-      console.log('[Socket] Disconnected | reason:', reason);
+      console.warn('[Socket] Disconnected | reason:', reason);
     });
 
-    // ─── Direct Message ───────────────────────────────────────────
+    s.on('reconnect', (attempt) => {
+      console.log('[Socket] Reconnected after', attempt, 'attempts | new socketId:', s.id);
+    });
+
+    // ── Messaging ─────────────────────────────────────────────────────────────
     s.on('message:receive', (message: any) => {
       addMessageRef.current(message);
       toast.info(`New message from ${message.senderId?.name || 'Friend'}`);
     });
 
-    // ─── Group Message ────────────────────────────────────────────
     s.on('group:message-receive', ({ message }: any) => {
       addMessageRef.current(message);
       toast.info('New group message');
     });
 
-    // ─── Friend Events ────────────────────────────────────────────
+    // ── Friends ───────────────────────────────────────────────────────────────
     s.on('friend:accepted', () => {
       toast.success('Friend request accepted!');
-      window.dispatchEvent(new Event('friends:updated'));
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('friends:updated'));
     });
 
     s.on('friend:request-received', () => {
       toast.info('You received a new friend request!');
-      window.dispatchEvent(new Event('friend-requests:updated'));
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('friend-requests:updated'));
     });
 
-    // ─── Typing Indicators ────────────────────────────────────────
+    // ── Typing ────────────────────────────────────────────────────────────────
     s.on('typing:start', ({ senderId }: any) => setTypingRef.current(senderId, true));
     s.on('typing:stop', ({ senderId }: any) => setTypingRef.current(senderId, false));
     s.on('group:typing', ({ userId, isTyping }: any) => setTypingRef.current(userId, isTyping));
 
-    // ─── Calling Events — always read FRESH state from Zustand store ───
+    // ── Call events — always read FRESH state via getState() ──────────────────
     s.on('call:incoming', (data: any) => {
       console.log('[Socket] *** call:incoming ***', JSON.stringify(data));
 
@@ -133,9 +134,10 @@ export const useSocket = () => {
         profilePic: rawCaller.profilePic || '',
         friendId: rawCaller.friendId || '',
       };
-      console.log('[Socket] Incoming call from:', caller.name, 'ID:', caller._id);
+
+      console.log('[Socket] Incoming call from:', caller.name, '| ID:', caller._id);
       useCallStore.getState().receiveCall(caller);
-      toast.info(`Incoming Voice Call from ${caller.name}`);
+      toast.info(`📞 Incoming Voice Call from ${caller.name}`);
     });
 
     s.on('call:accepted', (data: any) => {
@@ -166,12 +168,12 @@ export const useSocket = () => {
       toast.warning('Call was rejected.');
     });
 
-    // Cleanup: remove ALL listeners only (don't disconnect on dependency changes)
+    // Cleanup: only remove listeners, DO NOT disconnect on dep changes
     return () => {
       s.removeAllListeners();
     };
 
-  }, [user?._id, token]); // Only user._id and token — no Zustand functions in deps
+  }, [user?._id, token]); // ← Only these two — NEVER Zustand functions
 
   return { socket };
 };
