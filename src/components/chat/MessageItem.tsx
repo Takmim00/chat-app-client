@@ -5,6 +5,7 @@ import { Message, User } from '@/types';
 import { formatTime, formatFileSize } from '@/lib/utils';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useChatStore } from '@/store/useChatStore';
+import { useCallStore, callWebRTCRef } from '@/store/useCallStore';
 import { fetchApi } from '@/lib/api';
 import {
   Pin,
@@ -18,6 +19,9 @@ import {
   CheckCheck,
   MoreVertical,
   Volume2,
+  Phone,
+  PhoneMissed,
+  PhoneIncoming,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -28,6 +32,7 @@ interface MessageItemProps {
 export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
   const { user } = useAuthStore();
   const { setReplyingTo, updateMessage, deleteMessage } = useChatStore();
+  const { initiateCall } = useCallStore();
   const [showActions, setShowActions] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
@@ -37,6 +42,20 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
   const isMe = senderIdStr === user?._id;
   const senderName = senderObj?.name || (isMe ? user?.name : 'Member');
   const senderPic = senderObj?.profilePic || (isMe ? user?.profilePic : undefined);
+
+  // Call back: the person to call is the OTHER person in the call message
+  const handleCallBack = () => {
+    // The partner is whoever is NOT me in this call message
+    const otherPerson: any = senderObj && senderIdStr !== user?._id
+      ? senderObj
+      : useChatStore.getState().activeChatPartner;
+
+    if (!otherPerson) return;
+    initiateCall(otherPerson);
+    if (callWebRTCRef.startCallFn) {
+      callWebRTCRef.startCallFn(otherPerson);
+    }
+  };
 
   const handleTogglePin = async () => {
     try {
@@ -97,6 +116,62 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
 
   if (message.deletedFor?.includes(user?._id || '')) {
     return null;
+  }
+
+  // ── Call Event Bubble (Messenger-style) ─────────────────────────────────────
+  if (message.type === 'call') {
+    const isMissed = message.callStatus === 'missed' || message.callStatus === 'rejected';
+    const durationMins = message.callDuration && message.callDuration > 0
+      ? Math.ceil(message.callDuration / 60)
+      : 0;
+    const durationLabel = durationMins > 0
+      ? `${durationMins} min${durationMins !== 1 ? 's' : ''}`
+      : null;
+
+    return (
+      <div className="flex justify-center my-3">
+        <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl border shadow-md min-w-[220px] max-w-xs ${
+          isMissed
+            ? 'bg-rose-950/40 border-rose-800/40'
+            : 'bg-emerald-950/40 border-emerald-800/40'
+        }`}>
+          {/* Icon */}
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+            isMissed ? 'bg-rose-900/60' : 'bg-emerald-900/60'
+          }`}>
+            {isMissed
+              ? <PhoneMissed className="w-5 h-5 text-rose-400" />
+              : <PhoneIncoming className="w-5 h-5 text-emerald-400" />
+            }
+          </div>
+
+          {/* Text */}
+          <div className="flex-1 min-w-0">
+            <p className={`text-sm font-semibold ${
+              isMissed ? 'text-rose-300' : 'text-emerald-300'
+            }`}>
+              {isMissed ? 'Missed audio call' : 'Audio call'}
+            </p>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              {durationLabel ? durationLabel : formatTime(message.createdAt)}
+            </p>
+          </div>
+
+          {/* Call back button */}
+          <button
+            onClick={handleCallBack}
+            className={`p-2 rounded-xl text-xs font-semibold transition-all ${
+              isMissed
+                ? 'bg-rose-800/50 hover:bg-rose-700 text-rose-200'
+                : 'bg-emerald-800/50 hover:bg-emerald-700 text-emerald-200'
+            }`}
+            title={isMissed ? 'Call back' : 'Call again'}
+          >
+            <Phone className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (

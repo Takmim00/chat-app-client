@@ -36,11 +36,13 @@ export interface Message {
   groupId?: string;
   senderId: User;
   content: string;
-  type: 'text' | 'image' | 'video' | 'audio' | 'document' | 'system';
+  type: 'text' | 'image' | 'video' | 'audio' | 'document' | 'system' | 'call';
   fileUrl?: string;
   fileName?: string;
   fileSize?: number;
   fileType?: string;
+  callDuration?: number;
+  callStatus?: 'completed' | 'missed' | 'rejected' | 'cancelled';
   replyToId?: Message;
   isEdited: boolean;
   isPinned: boolean;

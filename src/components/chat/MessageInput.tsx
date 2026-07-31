@@ -166,10 +166,10 @@ export const MessageInput: React.FC = () => {
       )}
 
       {/* Input Bar */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 overflow-hidden">
         <button
           onClick={() => setIsAttachmentOpen(true)}
-          className="p-2.5 md:p-3 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-xl transition-colors"
+          className="p-2.5 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-xl transition-colors shrink-0"
           title="Attach file"
         >
           <Paperclip className="w-5 h-5" />
@@ -177,7 +177,7 @@ export const MessageInput: React.FC = () => {
 
         <button
           onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-          className="p-2.5 md:p-3 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded-xl transition-colors"
+          className="p-2.5 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded-xl transition-colors shrink-0"
           title="Emojis"
         >
           <Smile className="w-5 h-5" />
@@ -189,13 +189,13 @@ export const MessageInput: React.FC = () => {
           onChange={handleInputChange}
           onKeyDown={handleKeyPress}
           placeholder="Type a message..."
-          className="flex-1 py-2.5 md:py-3 px-4 bg-slate-800 border border-slate-700/60 rounded-2xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="flex-1 min-w-0 py-2.5 px-4 bg-slate-800 border border-slate-700/60 rounded-2xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
         />
 
         <button
           onClick={() => handleSend()}
           disabled={!content.trim()}
-          className="p-2.5 md:p-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-2xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center shrink-0"
+          className="p-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-2xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center shrink-0"
         >
           <Send className="w-5 h-5" />
         </button>

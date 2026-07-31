@@ -52,6 +52,8 @@ export const useWebRTC = () => {
   const processedCandidatesRef = useRef<Set<string>>(new Set());
   const partnerRef = useRef(partner);
   const userAcceptedRef = useRef(false);
+  // Stored local description for re-sending on socket reconnect
+  const localDescriptionRef = useRef<RTCSessionDescriptionInit | null>(null);
   // Store the partner ID used when creating the peer connection
   const peerPartnerIdRef = useRef<string | null>(null);
 
@@ -123,6 +125,7 @@ export const useWebRTC = () => {
       peerConnectionRef.current = null;
     }
     pendingOfferRef.current = null;
+    localDescriptionRef.current = null;
     iceCandidatesQueueRef.current = [];
     processedCandidatesRef.current.clear();
     userAcceptedRef.current = false;
@@ -183,6 +186,39 @@ export const useWebRTC = () => {
     [cleanupPeerConnection, getActiveSocket]
   );
 
+  // ── Socket reconnect: re-send pending call signals ─────────────────────────
+  useEffect(() => {
+    const handleReconnect = () => {
+      const s = getSocket();
+      if (!s || !s.connected) return;
+
+      const callState = useCallStore.getState();
+      const pc = peerConnectionRef.current;
+      const partnerId = peerPartnerIdRef.current;
+
+      if (!partnerId || !localDescriptionRef.current) return;
+
+      if (callState.callStatus === 'outgoing' && localDescriptionRef.current.type === 'offer') {
+        console.log('[WebRTC] Socket reconnected — re-sending call:offer to', partnerId);
+        s.emit('call:offer', { to: partnerId, offer: localDescriptionRef.current });
+      } else if (callState.callStatus === 'connected' && localDescriptionRef.current.type === 'answer') {
+        console.log('[WebRTC] Socket reconnected — re-sending call:answer to', partnerId);
+        s.emit('call:answer', { to: partnerId, answer: localDescriptionRef.current });
+      }
+    };
+
+    // Poll for socket reconnect events
+    const interval = setInterval(() => {
+      const s = getSocket();
+      if (s) {
+        s.off('reconnect', handleReconnect);
+        s.on('reconnect', handleReconnect);
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   // ── ICE Candidate Queue Flusher ─────────────────────────────────────────────
   const flushCandidateQueue = useCallback(async (pc: RTCPeerConnection) => {
     while (iceCandidatesQueueRef.current.length > 0) {
@@ -215,6 +251,7 @@ export const useWebRTC = () => {
       await pc.setRemoteDescription(new RTCSessionDescription(pendingOfferRef.current));
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
+      localDescriptionRef.current = answer; // Store for reconnect re-send
 
       await flushCandidateQueue(pc);
 
@@ -331,6 +368,7 @@ export const useWebRTC = () => {
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
     const offer = await pc.createOffer({ offerToReceiveAudio: true });
     await pc.setLocalDescription(offer);
+    localDescriptionRef.current = offer; // Store for reconnect re-send
 
     // 4. Send offer using CURRENT socket (may differ from when pc was made)
     const freshSocket = getActiveSocket();

@@ -7,13 +7,11 @@ import { toast } from 'sonner';
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5000';
 
-// Single global socket instance — persists across component re-renders and effect cycles
 let socket: Socket | null = null;
 let currentSocketUserId: string | null = null;
 
 export const getSocket = (): Socket | null => socket;
 
-// Creates a brand new socket, evicting any previous one
 function createSocket(token: string): Socket {
   if (socket) {
     socket.removeAllListeners();
@@ -24,9 +22,11 @@ function createSocket(token: string): Socket {
 
   const newSocket = io(SOCKET_URL, {
     auth: { token },
-    transports: ['websocket', 'polling'],
+    // Use polling first — Render HTTP polling is far more stable than raw WebSocket
+    // Socket.io will transparently upgrade to WebSocket once connection is stable
+    transports: ['polling', 'websocket'],
     reconnection: true,
-    reconnectionAttempts: Infinity,   // Keep trying forever
+    reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,
     reconnectionDelayMax: 5000,
     timeout: 20000,
@@ -39,7 +39,6 @@ function createSocket(token: string): Socket {
 export const useSocket = () => {
   const { user, token } = useAuthStore();
 
-  // Stable refs for store callbacks — never triggers re-renders or effect cycles
   const addMessageRef = useRef(useChatStore.getState().addMessage);
   const setTypingRef = useRef(useChatStore.getState().setTyping);
 
@@ -51,7 +50,6 @@ export const useSocket = () => {
     return unsub;
   }, []);
 
-  // ── ONLY depends on user._id + token — no Zustand functions ────────────────
   useEffect(() => {
     if (!user || !token) {
       if (socket) {
@@ -63,7 +61,6 @@ export const useSocket = () => {
       return;
     }
 
-    // Already connected as this user — don't recreate
     if (socket && socket.connected && currentSocketUserId === user._id) {
       return;
     }
@@ -71,9 +68,8 @@ export const useSocket = () => {
     const s = createSocket(token);
     currentSocketUserId = user._id;
 
-    // ── Connection lifecycle ──────────────────────────────────────────────────
     s.on('connect', () => {
-      console.log('[Socket] Connected | user:', user._id, '| socketId:', s.id);
+      console.log('[Socket] Connected | user:', user._id, '| socketId:', s.id, '| transport:', s.io.engine.transport.name);
     });
 
     s.on('connect_error', (err) => {
@@ -85,7 +81,7 @@ export const useSocket = () => {
     });
 
     s.on('reconnect', (attempt) => {
-      console.log('[Socket] Reconnected after', attempt, 'attempts | new socketId:', s.id);
+      console.log('[Socket] Reconnected after', attempt, 'attempt(s) | socketId:', s.id);
     });
 
     // ── Messaging ─────────────────────────────────────────────────────────────
@@ -115,13 +111,13 @@ export const useSocket = () => {
     s.on('typing:stop', ({ senderId }: any) => setTypingRef.current(senderId, false));
     s.on('group:typing', ({ userId, isTyping }: any) => setTypingRef.current(userId, isTyping));
 
-    // ── Call events — always read FRESH state via getState() ──────────────────
+    // ── Calling ───────────────────────────────────────────────────────────────
     s.on('call:incoming', (data: any) => {
       console.log('[Socket] *** call:incoming ***', JSON.stringify(data));
 
       const currentStatus = useCallStore.getState().callStatus;
       if (currentStatus !== 'idle') {
-        console.log('[Socket] Already in a call — ignoring incoming. Status:', currentStatus);
+        console.log('[Socket] Already in a call — ignoring. Status:', currentStatus);
         return;
       }
 
@@ -168,12 +164,10 @@ export const useSocket = () => {
       toast.warning('Call was rejected.');
     });
 
-    // Cleanup: only remove listeners, DO NOT disconnect on dep changes
     return () => {
       s.removeAllListeners();
     };
-
-  }, [user?._id, token]); // ← Only these two — NEVER Zustand functions
+  }, [user?._id, token]);
 
   return { socket };
 };
