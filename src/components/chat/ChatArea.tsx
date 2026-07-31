@@ -9,7 +9,7 @@ import { fetchApi } from '@/lib/api';
 import { MessageItem } from './MessageItem';
 import { MessageInput } from './MessageInput';
 import { PinnedBanner } from './PinnedBanner';
-import { Phone, Video, Users, Info, Sparkles, ArrowLeft } from 'lucide-react';
+import { Phone, Video, Users, Info, Sparkles, ArrowLeft, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ChatAreaProps {
@@ -163,11 +163,33 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
             <span className="hidden sm:inline">Video Call</span>
           </button>
 
+          {activeChatPartner && (
+            <button
+              onClick={async () => {
+                if (!window.confirm(`Are you sure you want to block ${activeChatPartner.name}?`)) return;
+                try {
+                  await fetchApi('/user/block', {
+                    method: 'POST',
+                    body: JSON.stringify({ targetUserId: activeChatPartner._id }),
+                  });
+                  toast.success(`${activeChatPartner.name} blocked.`);
+                  setActiveChatPartner(null);
+                } catch (err: any) {
+                  toast.error(err.message || 'Failed to block user.');
+                }
+              }}
+              className="p-2.5 md:p-3 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-2xl transition-colors"
+              title="Block User"
+            >
+              <ShieldAlert className="w-5 h-5" />
+            </button>
+          )}
+
           {activeGroup && (
             <button
               onClick={onOpenGroupSettings}
               className="p-2.5 md:p-3 text-slate-400 hover:text-white hover:bg-slate-800 rounded-2xl transition-colors"
-              title="Group Info"
+              title="Group Settings & Members"
             >
               <Info className="w-5 h-5" />
             </button>

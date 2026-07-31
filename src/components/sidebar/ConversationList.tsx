@@ -6,6 +6,7 @@ import { useGroupStore } from '@/store/useGroupStore';
 import { fetchApi } from '@/lib/api';
 import { User } from '@/types';
 import { Search, Users, MessageSquarePlus } from 'lucide-react';
+import { getSocket } from '@/hooks/useSocket';
 
 export const ConversationList: React.FC = () => {
   const {
@@ -21,6 +22,7 @@ export const ConversationList: React.FC = () => {
   const [friends, setFriends] = useState<User[]>([]);
   const [searchFilter, setSearchFilter] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [lastActivityMap, setLastActivityMap] = useState<Record<string, number>>({});
 
   const loadFriends = useCallback(async () => {
     try {
@@ -54,6 +56,30 @@ export const ConversationList: React.FC = () => {
     }
   }, [activeTab, loadFriends, loadGroups]);
 
+  // Listen for real-time messages to bump active conversation to the top
+  useEffect(() => {
+    const handleNewMessage = (data: any) => {
+      const msg = data.message || data;
+      const targetId = msg.senderId?._id || msg.chatId || msg.groupId;
+      if (targetId) {
+        setLastActivityMap((prev) => ({ ...prev, [targetId]: Date.now() }));
+      }
+    };
+
+    const attachListeners = () => {
+      const s = getSocket();
+      if (!s) return;
+      s.off('message:receive', handleNewMessage);
+      s.on('message:receive', handleNewMessage);
+      s.off('group:message-receive', handleNewMessage);
+      s.on('group:message-receive', handleNewMessage);
+    };
+
+    attachListeners();
+    const interval = setInterval(attachListeners, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Listen for real-time friend additions
   useEffect(() => {
     const handleFriendsUpdated = () => {
@@ -74,6 +100,14 @@ export const ConversationList: React.FC = () => {
 
   const filteredGroups = groups.filter((g) =>
     g.name.toLowerCase().includes(searchFilter.toLowerCase())
+  );
+
+  const sortedFriends = [...filteredFriends].sort(
+    (a, b) => (lastActivityMap[b._id] || 0) - (lastActivityMap[a._id] || 0)
+  );
+
+  const sortedGroups = [...filteredGroups].sort(
+    (a, b) => (lastActivityMap[b._id] || 0) - (lastActivityMap[a._id] || 0)
   );
 
   return (
@@ -100,13 +134,13 @@ export const ConversationList: React.FC = () => {
         {isLoading ? (
           <div className="p-8 text-center text-xs text-slate-500">Loading conversations...</div>
         ) : activeTab === 'chats' ? (
-          filteredFriends.length === 0 ? (
+          sortedFriends.length === 0 ? (
             <div className="p-8 text-center text-xs text-slate-500">
               <MessageSquarePlus className="w-8 h-8 text-slate-600 mx-auto mb-2" />
               No friends found. Add friends using their Friend ID!
             </div>
           ) : (
-            filteredFriends.map((friend) => {
+            sortedFriends.map((friend) => {
               const isSelected = activeChatPartner?._id === friend._id;
               const unread = unreadCounts[friend._id] || 0;
 
@@ -157,13 +191,13 @@ export const ConversationList: React.FC = () => {
               );
             })
           )
-        ) : filteredGroups.length === 0 ? (
+        ) : sortedGroups.length === 0 ? (
           <div className="p-8 text-center text-xs text-slate-500">
             <Users className="w-8 h-8 text-slate-600 mx-auto mb-2" />
             No groups found. Create or join a group!
           </div>
         ) : (
-          filteredGroups.map((group) => {
+          sortedGroups.map((group) => {
             const isSelected = activeGroup?._id === group._id;
             const unread = unreadCounts[group._id] || 0;
 
