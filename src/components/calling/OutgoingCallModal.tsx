@@ -6,12 +6,13 @@ import { PhoneOff } from 'lucide-react';
 import { getSocket } from '@/hooks/useSocket';
 
 export const OutgoingCallModal: React.FC = () => {
-  const { callStatus, partner, endCall } = useCallStore();
+  const { callStatus, callType, partner, endCall } = useCallStore();
 
   if (callStatus !== 'outgoing' || !partner) return null;
 
   const displayName = partner.name || partner.username || 'Unknown';
   const initial = displayName.charAt(0).toUpperCase();
+  const isVideo = callType === 'video';
 
   const handleCancelCall = () => {
     const socket = getSocket();
@@ -37,7 +38,9 @@ export const OutgoingCallModal: React.FC = () => {
 
         <div>
           <h3 className="text-xl font-bold text-white">{displayName}</h3>
-          <p className="text-xs text-indigo-400 font-medium mt-1 animate-pulse">Calling...</p>
+          <p className="text-xs text-indigo-400 font-medium mt-1 animate-pulse">
+            {isVideo ? '📹 Calling Video...' : '📞 Calling Voice...'}
+          </p>
         </div>
 
         <div className="flex justify-center pt-2">

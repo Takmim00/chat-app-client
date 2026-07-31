@@ -131,9 +131,10 @@ export const useSocket = () => {
         friendId: rawCaller.friendId || '',
       };
 
-      console.log('[Socket] Incoming call from:', caller.name, '| ID:', caller._id);
-      useCallStore.getState().receiveCall(caller);
-      toast.info(`📞 Incoming Voice Call from ${caller.name}`);
+      const callType = data?.callType === 'video' ? 'video' : 'voice';
+      console.log('[Socket] Incoming call from:', caller.name, '| ID:', caller._id, '| Type:', callType);
+      useCallStore.getState().receiveCall(caller, callType);
+      toast.info(callType === 'video' ? `📹 Incoming Video Call from ${caller.name}` : `📞 Incoming Voice Call from ${caller.name}`);
     });
 
     s.on('call:accepted', (data: any) => {

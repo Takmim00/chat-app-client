@@ -6,12 +6,13 @@ import { Phone, PhoneOff, Volume2 } from 'lucide-react';
 import { getSocket } from '@/hooks/useSocket';
 
 export const IncomingCallModal: React.FC = () => {
-  const { callStatus, partner, acceptCall, rejectCall } = useCallStore();
+  const { callStatus, callType, partner, acceptCall, rejectCall } = useCallStore();
 
   if (callStatus !== 'incoming' || !partner) return null;
 
   const displayName = partner.name || partner.username || 'Unknown';
   const initial = displayName.charAt(0).toUpperCase();
+  const isVideo = callType === 'video';
 
   const handleAccept = () => {
     const socket = getSocket();
@@ -53,7 +54,9 @@ export const IncomingCallModal: React.FC = () => {
 
         <div>
           <h3 className="text-xl font-bold text-white">{displayName}</h3>
-          <p className="text-xs text-indigo-400 font-medium mt-1">Incoming Voice Call...</p>
+          <p className="text-xs text-indigo-400 font-medium mt-1">
+            {isVideo ? '📹 Incoming Video Call...' : '📞 Incoming Voice Call...'}
+          </p>
         </div>
 
         <div className="flex items-center justify-center gap-6 pt-2">

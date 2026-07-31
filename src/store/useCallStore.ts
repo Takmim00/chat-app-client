@@ -2,9 +2,10 @@ import { create } from 'zustand';
 import { User } from '@/types';
 
 export type CallStatus = 'idle' | 'outgoing' | 'incoming' | 'connected' | 'ended';
+export type CallType = 'voice' | 'video';
 
 export const callWebRTCRef: {
-  startCallFn: ((partner: User) => void) | null;
+  startCallFn: ((partner: User, callType?: CallType) => void) | null;
   answerCallFn: (() => void) | null;
 } = {
   startCallFn: null,
@@ -13,14 +14,15 @@ export const callWebRTCRef: {
 
 interface CallState {
   callStatus: CallStatus;
+  callType: CallType;
   partner: User | null;
   isMuted: boolean;
   isSpeakerOn: boolean;
   callDuration: number;
   timerIntervalId: any;
 
-  initiateCall: (partner: User) => void;
-  receiveCall: (caller: User) => void;
+  initiateCall: (partner: User, callType?: CallType) => void;
+  receiveCall: (caller: User, callType?: CallType) => void;
   acceptCall: () => void;
   rejectCall: () => void;
   endCall: () => void;
@@ -31,25 +33,24 @@ interface CallState {
 
 export const useCallStore = create<CallState>((set, get) => ({
   callStatus: 'idle',
+  callType: 'voice',
   partner: null,
   isMuted: false,
   isSpeakerOn: true,
   callDuration: 0,
   timerIntervalId: null,
 
-  initiateCall: (partner) => {
-    set({ callStatus: 'outgoing', partner, callDuration: 0 });
+  initiateCall: (partner, callType = 'voice') => {
+    set({ callStatus: 'outgoing', callType, partner, callDuration: 0 });
   },
 
-  receiveCall: (caller) => {
-    set({ callStatus: 'incoming', partner: caller, callDuration: 0 });
+  receiveCall: (caller, callType = 'voice') => {
+    set({ callStatus: 'incoming', callType, partner: caller, callDuration: 0 });
   },
 
   acceptCall: () => {
     const { callStatus, timerIntervalId } = get();
-    // Prevent duplicate timers if already connected
     if (callStatus === 'connected') return;
-    // Clear any pre-existing timer just in case
     if (timerIntervalId) clearInterval(timerIntervalId);
     const interval = setInterval(() => {
       set((state) => ({ callDuration: state.callDuration + 1 }));
@@ -79,6 +80,7 @@ export const useCallStore = create<CallState>((set, get) => ({
     if (timerIntervalId) clearInterval(timerIntervalId);
     set({
       callStatus: 'idle',
+      callType: 'voice',
       partner: null,
       isMuted: false,
       isSpeakerOn: true,

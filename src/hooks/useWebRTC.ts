@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { getSocket } from './useSocket';
-import { useCallStore, callWebRTCRef } from '@/store/useCallStore';
+import { useCallStore, callWebRTCRef, CallType } from '@/store/useCallStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { User } from '@/types';
 import { toast } from 'sonner';
@@ -9,7 +9,7 @@ export const useWebRTC = () => {
   const { partner } = useCallStore();
   const { user } = useAuthStore();
 
-  const startCall = (targetPartnerUser?: User) => {
+  const startCall = (targetPartnerUser?: User, callType: CallType = 'voice') => {
     const s = getSocket();
     const currentPartner = targetPartnerUser ?? partner ?? useCallStore.getState().partner;
     const currentUser = user ?? useAuthStore.getState().user;
@@ -24,8 +24,8 @@ export const useWebRTC = () => {
       return;
     }
 
-    console.log('[ZEGOCloud] Initiating Voice Call to partner:', currentPartner.name, 'ID:', currentPartner._id);
-    s.emit('call:initiate', { receiverId: currentPartner._id, callerInfo: currentUser });
+    console.log(`[ZEGOCloud] Initiating ${callType.toUpperCase()} Call to partner:`, currentPartner.name, 'ID:', currentPartner._id);
+    s.emit('call:initiate', { receiverId: currentPartner._id, callerInfo: currentUser, callType });
   };
 
   const answerCall = () => {
@@ -33,7 +33,7 @@ export const useWebRTC = () => {
     const currentPartner = useCallStore.getState().partner;
     if (!s || !currentPartner) return;
 
-    console.log('[ZEGOCloud] Answering Voice Call from partner:', currentPartner.name);
+    console.log('[ZEGOCloud] Answering Call from partner:', currentPartner.name);
     s.emit('call:accept', { callerId: currentPartner._id });
     useCallStore.getState().acceptCall();
   };

@@ -9,7 +9,7 @@ import { fetchApi } from '@/lib/api';
 import { MessageItem } from './MessageItem';
 import { MessageInput } from './MessageInput';
 import { PinnedBanner } from './PinnedBanner';
-import { Phone, Users, Info, Sparkles, ArrowLeft } from 'lucide-react';
+import { Phone, Video, Users, Info, Sparkles, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ChatAreaProps {
@@ -51,13 +51,25 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
 
   const handleStartVoiceCall = () => {
     if (activeChatPartner) {
-      initiateCall(activeChatPartner);
+      initiateCall(activeChatPartner, 'voice');
       if (callWebRTCRef.startCallFn) {
-        callWebRTCRef.startCallFn(activeChatPartner);
+        callWebRTCRef.startCallFn(activeChatPartner, 'voice');
       }
     } else if (activeGroup) {
       setIsInGroupCall(true);
       toast.info('Starting Group Voice Call...');
+    }
+  };
+
+  const handleStartVideoCall = () => {
+    if (activeChatPartner) {
+      initiateCall(activeChatPartner, 'video');
+      if (callWebRTCRef.startCallFn) {
+        callWebRTCRef.startCallFn(activeChatPartner, 'video');
+      }
+    } else if (activeGroup) {
+      setIsInGroupCall(true);
+      toast.info('Starting Group Video Call...');
     }
   };
 
@@ -140,6 +152,15 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
           >
             <Phone className="w-4 h-4" />
             <span className="hidden sm:inline">Voice Call</span>
+          </button>
+
+          <button
+            onClick={handleStartVideoCall}
+            className="p-2.5 md:p-3 bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600 hover:text-white rounded-2xl border border-indigo-500/40 transition-all flex items-center gap-2 text-xs font-semibold shadow-md"
+            title="Start Video Call"
+          >
+            <Video className="w-4 h-4" />
+            <span className="hidden sm:inline">Video Call</span>
           </button>
 
           {activeGroup && (
