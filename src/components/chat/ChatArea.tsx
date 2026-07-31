@@ -4,6 +4,7 @@ import React, { useEffect, useRef } from 'react';
 import { useChatStore } from '@/store/useChatStore';
 import { useGroupStore } from '@/store/useGroupStore';
 import { useCallStore, callWebRTCRef } from '@/store/useCallStore';
+import { unlockAudioPlayback } from '@/hooks/useWebRTC';
 import { getSocket } from '@/hooks/useSocket';
 import { fetchApi } from '@/lib/api';
 import { MessageItem } from './MessageItem';
@@ -50,6 +51,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
   }, [messages]);
 
   const handleStartVoiceCall = () => {
+    unlockAudioPlayback();
     if (activeChatPartner) {
       initiateCall(activeChatPartner);
       if (callWebRTCRef.startCallFn) {

@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useCallStore, callWebRTCRef } from '@/store/useCallStore';
+import { unlockAudioPlayback } from '@/hooks/useWebRTC';
 import { Phone, PhoneOff, Volume2 } from 'lucide-react';
 import { getSocket } from '@/hooks/useSocket';
 
@@ -15,6 +16,9 @@ export const IncomingCallModal: React.FC = () => {
   const initial = displayName.charAt(0).toUpperCase();
 
   const handleAccept = () => {
+    // Unlock HTML5 audio autoplay restriction immediately on user touch/click
+    unlockAudioPlayback();
+
     const socket = getSocket();
     if (socket && partner) {
       socket.emit('call:accept', { callerId: partner._id });
