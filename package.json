@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@types/simple-peer": "^9.11.9",
+    "@zegocloud/zego-uikit-prebuilt": "^2.18.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.27.0",
     "next": "16.2.12",

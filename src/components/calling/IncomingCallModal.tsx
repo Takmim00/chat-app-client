@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { useCallStore, callWebRTCRef } from '@/store/useCallStore';
-import { unlockAudioPlayback } from '@/hooks/useWebRTC';
 import { Phone, PhoneOff, Volume2 } from 'lucide-react';
 import { getSocket } from '@/hooks/useSocket';
 
@@ -11,22 +10,15 @@ export const IncomingCallModal: React.FC = () => {
 
   if (callStatus !== 'incoming' || !partner) return null;
 
-  // Safely extract display name — never crash if name is missing
   const displayName = partner.name || partner.username || 'Unknown';
   const initial = displayName.charAt(0).toUpperCase();
 
   const handleAccept = () => {
-    // Unlock HTML5 audio autoplay restriction immediately on user touch/click
-    unlockAudioPlayback();
-
     const socket = getSocket();
     if (socket && partner) {
       socket.emit('call:accept', { callerId: partner._id });
     }
-    // Immediately transition UI to connected state so IncomingCallModal dismisses
-    // and ActiveCallScreen with timer shows up
     acceptCall();
-    // Then start the WebRTC answer process (gets media, creates answer, etc.)
     if (callWebRTCRef.answerCallFn) {
       callWebRTCRef.answerCallFn();
     }

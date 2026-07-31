@@ -1,26 +1,30 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useCallStore } from '@/store/useCallStore';
-import { Mic, MicOff, Volume2, VolumeX, PhoneOff } from 'lucide-react';
+import { useAuthStore } from '@/store/useAuthStore';
 import { getSocket } from '@/hooks/useSocket';
+import { PhoneOff } from 'lucide-react';
+
+const APP_ID = Number(process.env.NEXT_PUBLIC_ZEGO_APP_ID || 1484647939);
+const SERVER_SECRET = process.env.NEXT_PUBLIC_ZEGO_SERVER_SECRET || 'd092d6e3c04f981ff92881a2936798e4';
 
 export const ActiveCallScreen: React.FC = () => {
-  const { callStatus, partner, isMuted, isSpeakerOn, callDuration, toggleMute, toggleSpeaker, endCall } =
-    useCallStore();
+  const { callStatus, partner, callDuration, endCall } = useCallStore();
+  const { user } = useAuthStore();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const zegoInstanceRef = useRef<any>(null);
 
-  if (callStatus !== 'connected' || !partner) return null;
+  const handleEndCall = () => {
+    if (zegoInstanceRef.current) {
+      try {
+        zegoInstanceRef.current.destroy();
+      } catch (e) {
+        console.warn('Zego destroy error:', e);
+      }
+      zegoInstanceRef.current = null;
+    }
 
-  const displayName = partner.name || partner.username || 'Unknown';
-  const initial = displayName.charAt(0).toUpperCase();
-
-  const formatDuration = (secs: number) => {
-    const mins = Math.floor(secs / 60);
-    const remainingSecs = secs % 60;
-    return `${mins.toString().padStart(2, '0')}:${remainingSecs.toString().padStart(2, '0')}`;
-  };
-
-  const handleEnd = () => {
     const socket = getSocket();
     if (socket && partner) {
       socket.emit('call:end', { partnerId: partner._id, duration: callDuration });
@@ -28,60 +32,92 @@ export const ActiveCallScreen: React.FC = () => {
     endCall();
   };
 
+  useEffect(() => {
+    if (callStatus !== 'connected' || !partner || !user || !containerRef.current) return;
+
+    let isMounted = true;
+
+    const initZego = async () => {
+      try {
+        // Dynamically import ZegoUIKitPrebuilt for Next.js SSR compatibility
+        const { ZegoUIKitPrebuilt } = await import('@zegocloud/zego-uikit-prebuilt');
+
+        const roomID = [user._id, partner._id].sort().join('_call_');
+        const userID = user._id;
+        const userName = user.name || user.username || 'User';
+
+        const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(
+          APP_ID,
+          SERVER_SECRET,
+          roomID,
+          userID,
+          userName
+        );
+
+        const zp = ZegoUIKitPrebuilt.create(kitToken);
+        zegoInstanceRef.current = zp;
+
+        if (!isMounted || !containerRef.current) return;
+
+        zp.joinRoom({
+          container: containerRef.current,
+          scenario: {
+            mode: ZegoUIKitPrebuilt.OneONoneCall,
+          },
+          turnOnCameraWhenJoining: false,
+          turnOnMicrophoneWhenJoining: true,
+          showMyCameraToggleButton: false,
+          showMyMicrophoneToggleButton: true,
+          showAudioVideoSettingsButton: true,
+          showScreenSharingButton: false,
+          showTextChat: false,
+          showUserList: false,
+          showPreJoinView: false,
+          onLeaveRoom: () => {
+            handleEndCall();
+          },
+        });
+      } catch (err) {
+        console.error('[ZEGOCloud Init Error]:', err);
+      }
+    };
+
+    initZego();
+
+    return () => {
+      isMounted = false;
+      if (zegoInstanceRef.current) {
+        try {
+          zegoInstanceRef.current.destroy();
+        } catch (e) {}
+        zegoInstanceRef.current = null;
+      }
+    };
+  }, [callStatus, partner?._id, user?._id]);
+
+  if (callStatus !== 'connected' || !partner) return null;
+
+  const displayName = partner.name || partner.username || 'Unknown';
+
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-xl flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md p-8 shadow-2xl text-center space-y-8 animate-in fade-in zoom-in duration-200">
-        <div className="space-y-4">
-          <div className="w-28 h-28 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 font-bold text-4xl text-white flex items-center justify-center overflow-hidden border-4 border-indigo-400 mx-auto shadow-2xl shadow-indigo-500/40">
-            {partner.profilePic ? (
-              <img src={partner.profilePic} alt={displayName} className="w-full h-full object-cover" />
-            ) : (
-              initial
-            )}
-          </div>
-
+    <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-xl flex flex-col items-center justify-center p-2 md:p-6 animate-in fade-in zoom-in duration-200">
+      <div className="relative w-full max-w-4xl h-[85vh] bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col">
+        {/* Top Header */}
+        <div className="p-4 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between z-10 shrink-0">
           <div>
-            <h3 className="text-2xl font-bold text-white">{displayName}</h3>
-            <p className="text-sm text-emerald-400 font-mono font-semibold mt-1">
-              {formatDuration(callDuration)}
-            </p>
+            <h3 className="text-base font-bold text-white">{displayName}</h3>
+            <p className="text-xs text-emerald-400 font-semibold mt-0.5">ZEGOCloud Voice Stream Active</p>
           </div>
-        </div>
-
-        {/* Call Controls */}
-        <div className="flex items-center justify-center gap-6 pt-4 border-t border-slate-800">
           <button
-            onClick={toggleMute}
-            className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-all ${
-              isMuted
-                ? 'bg-rose-600 text-white'
-                : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
-            }`}
-            title={isMuted ? 'Unmute Mic' : 'Mute Mic'}
+            onClick={handleEndCall}
+            className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-rose-600/30 transition-all"
           >
-            {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
-          </button>
-
-          <button
-            onClick={handleEnd}
-            className="w-16 h-16 rounded-full bg-rose-600 hover:bg-rose-500 text-white flex items-center justify-center shadow-xl shadow-rose-600/40 transition-all hover:scale-105 active:scale-95"
-            title="End Call"
-          >
-            <PhoneOff className="w-7 h-7" />
-          </button>
-
-          <button
-            onClick={toggleSpeaker}
-            className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-all ${
-              !isSpeakerOn
-                ? 'bg-slate-800 text-slate-500 border border-slate-700'
-                : 'bg-indigo-600 text-white'
-            }`}
-            title="Toggle Speaker"
-          >
-            {isSpeakerOn ? <Volume2 className="w-6 h-6" /> : <VolumeX className="w-6 h-6" />}
+            <PhoneOff className="w-4 h-4" /> End Call
           </button>
         </div>
+
+        {/* ZEGOCloud Audio Container */}
+        <div ref={containerRef} className="w-full h-full flex-1 bg-slate-950" />
       </div>
     </div>
   );
