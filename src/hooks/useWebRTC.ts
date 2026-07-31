@@ -37,7 +37,6 @@ const RTC_CONFIG: RTCConfiguration = {
   iceCandidatePoolSize: 10,
 };
 
-// Global reference to remote audio element for user-gesture unlocking
 let globalRemoteAudio: HTMLAudioElement | null = null;
 
 export const unlockAudioPlayback = () => {
@@ -114,14 +113,12 @@ export const useWebRTC = () => {
           video: false,
         });
       } catch {
-        // Fallback to simple audio if advanced constraints fail on some mobile devices
         stream = await navigator.mediaDevices.getUserMedia({
           audio: true,
           video: false,
         });
       }
 
-      // Ensure all audio tracks are enabled
       stream.getAudioTracks().forEach((t) => { t.enabled = !useCallStore.getState().isMuted; });
       localStreamRef.current = stream;
       return stream;
@@ -144,7 +141,7 @@ export const useWebRTC = () => {
       peerConnectionRef.current.close();
       peerConnectionRef.current = null;
     }
-    pendingOfferRef.current = null;
+    // Note: Do NOT clear pendingOfferRef here, as processAnswer needs it right after cleanup
     localDescriptionRef.current = null;
     iceCandidatesQueueRef.current = [];
     processedCandidatesRef.current.clear();
@@ -234,10 +231,16 @@ export const useWebRTC = () => {
 
       if (callState.callStatus === 'outgoing' && localDescriptionRef.current.type === 'offer') {
         console.log('[WebRTC] Socket reconnected — re-sending call:offer to', partnerId);
-        s.emit('call:offer', { to: partnerId, offer: localDescriptionRef.current });
+        const payload = typeof (localDescriptionRef.current as any).toJSON === 'function'
+          ? (localDescriptionRef.current as any).toJSON()
+          : localDescriptionRef.current;
+        s.emit('call:offer', { to: partnerId, offer: payload });
       } else if (callState.callStatus === 'connected' && localDescriptionRef.current.type === 'answer') {
         console.log('[WebRTC] Socket reconnected — re-sending call:answer to', partnerId);
-        s.emit('call:answer', { to: partnerId, answer: localDescriptionRef.current });
+        const payload = typeof (localDescriptionRef.current as any).toJSON === 'function'
+          ? (localDescriptionRef.current as any).toJSON()
+          : localDescriptionRef.current;
+        s.emit('call:answer', { to: partnerId, answer: payload });
       }
     };
 
@@ -267,29 +270,52 @@ export const useWebRTC = () => {
   const processAnswer = useCallback(async () => {
     const s = getActiveSocket();
     const currentPartner = partnerRef.current;
-    if (!s || !currentPartner || !pendingOfferRef.current) {
-      console.warn('[WebRTC processAnswer] Missing socket, partner, or offer');
+    const rawOffer = pendingOfferRef.current;
+
+    if (!s || !currentPartner || !rawOffer) {
+      console.warn('[WebRTC processAnswer] Missing required items:', { socket: !!s, partner: !!currentPartner, offer: !!rawOffer });
       return;
     }
 
     try {
       unlockAudioPlayback();
 
+      // Safely parse offer object before createPeerConnection touches anything
+      const offerObj = typeof rawOffer === 'string' ? JSON.parse(rawOffer) : rawOffer;
+      if (!offerObj || (!offerObj.sdp && !offerObj.type)) {
+        throw new Error('Invalid SDP offer structure received');
+      }
+
+      const sessionDescription = new RTCSessionDescription({
+        type: offerObj.type || 'offer',
+        sdp: offerObj.sdp,
+      });
+
       const stream = await getMedia();
       if (!stream) { useCallStore.getState().endCall(); return; }
 
+      // Create new PC instance
       const pc = createPeerConnection(currentPartner._id);
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
-      await pc.setRemoteDescription(new RTCSessionDescription(pendingOfferRef.current));
+      // Set remote description (caller's offer)
+      await pc.setRemoteDescription(sessionDescription);
+
+      // Create answer
       const answer = await pc.createAnswer({ offerToReceiveAudio: true });
       await pc.setLocalDescription(answer);
       localDescriptionRef.current = answer;
 
+      // Flush ICE candidates
       await flushCandidateQueue(pc);
 
-      s.emit('call:answer', { to: currentPartner._id, answer });
-      console.log('[WebRTC] Answer emitted to caller');
+      // Emit clean answer object
+      const answerPayload = typeof (answer as any).toJSON === 'function'
+        ? (answer as any).toJSON()
+        : { type: answer.type, sdp: answer.sdp };
+
+      s.emit('call:answer', { to: currentPartner._id, answer: answerPayload });
+      console.log('[WebRTC] Answer generated & emitted successfully to caller:', currentPartner._id);
     } catch (err) {
       console.error('[WebRTC] processAnswer error:', err);
       toast.error('Failed to connect voice call.');
@@ -300,23 +326,34 @@ export const useWebRTC = () => {
   // ── Signaling Event Handlers ────────────────────────────────────────────────
   useEffect(() => {
     const handleOffer = async (data: any) => {
-      console.log('[WebRTC] Received offer from:', data.from);
-      pendingOfferRef.current = data.offer;
+      console.log('[WebRTC] Received offer from:', data?.from);
+      if (data?.offer) {
+        pendingOfferRef.current = data.offer;
+      }
       if (userAcceptedRef.current) {
-        console.log('[WebRTC] User had already accepted — processing now');
+        console.log('[WebRTC] User accepted prior to offer — processing answer now');
         userAcceptedRef.current = false;
         await processAnswer();
       }
     };
 
     const handleAnswer = async (data: any) => {
-      console.log('[WebRTC] Received answer from:', data.from);
+      console.log('[WebRTC] Received answer from:', data?.from);
       const pc = peerConnectionRef.current;
-      if (pc && pc.signalingState !== 'stable') {
-        await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-        await flushCandidateQueue(pc);
-        remoteAudioRef.current?.play().catch(() => {});
-        useCallStore.getState().acceptCall();
+      if (pc && pc.signalingState !== 'stable' && data?.answer) {
+        try {
+          const answerObj = typeof data.answer === 'string' ? JSON.parse(data.answer) : data.answer;
+          const sessionDesc = new RTCSessionDescription({
+            type: answerObj.type || 'answer',
+            sdp: answerObj.sdp,
+          });
+          await pc.setRemoteDescription(sessionDesc);
+          await flushCandidateQueue(pc);
+          remoteAudioRef.current?.play().catch(() => {});
+          useCallStore.getState().acceptCall();
+        } catch (err) {
+          console.error('[WebRTC] Error handling answer:', err);
+        }
       }
     };
 
@@ -395,14 +432,19 @@ export const useWebRTC = () => {
     // 3. Build offer
     const pc = createPeerConnection(currentPartner._id);
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+
     const offer = await pc.createOffer({ offerToReceiveAudio: true });
     await pc.setLocalDescription(offer);
     localDescriptionRef.current = offer;
 
-    // 4. Send offer
+    // 4. Send clean offer payload
+    const offerPayload = typeof (offer as any).toJSON === 'function'
+      ? (offer as any).toJSON()
+      : { type: offer.type, sdp: offer.sdp };
+
     const freshSocket = getActiveSocket();
     if (freshSocket && freshSocket.connected) {
-      freshSocket.emit('call:offer', { to: currentPartner._id, offer });
+      freshSocket.emit('call:offer', { to: currentPartner._id, offer: offerPayload });
     } else {
       toast.error('Lost connection while setting up call. Please try again.');
       cleanupPeerConnection();
@@ -419,7 +461,7 @@ export const useWebRTC = () => {
     unlockAudioPlayback();
 
     if (!pendingOfferRef.current) {
-      console.log('[WebRTC] Offer not yet received — will process on arrival');
+      console.log('[WebRTC] Offer not yet received — marked user accepted for auto-answer');
       userAcceptedRef.current = true;
       return;
     }
@@ -437,6 +479,7 @@ export const useWebRTC = () => {
     if (callStatus === 'idle' || callStatus === 'ended') {
       cleanupPeerConnection();
       stopLocalMedia();
+      pendingOfferRef.current = null;
     }
   }, [callStatus, cleanupPeerConnection, stopLocalMedia]);
 
