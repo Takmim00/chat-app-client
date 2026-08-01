@@ -6,8 +6,8 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { getSocket } from '@/hooks/useSocket';
 import { PhoneOff, Users } from 'lucide-react';
 
-const APP_ID = Number(process.env.NEXT_PUBLIC_ZEGO_APP_ID || 1484647939);
-const SERVER_SECRET = process.env.NEXT_PUBLIC_ZEGO_SERVER_SECRET || 'd092d6e3c04f981ff92881a2936798e4';
+const APP_ID = Number(process.env.NEXT_PUBLIC_ZEGO_APP_ID || 1560300605);
+const SERVER_SECRET = process.env.NEXT_PUBLIC_ZEGO_SERVER_SECRET || 'e5ff9b31ef0939a1a435d8ae661aff7e';
 
 export const GroupCallScreen: React.FC = () => {
   const { isInGroupCall, setIsInGroupCall, activeGroup } = useGroupStore();

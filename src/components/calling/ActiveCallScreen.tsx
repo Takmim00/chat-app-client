@@ -7,6 +7,9 @@ import { getSocket } from '@/hooks/useSocket';
 import { PhoneOff, Key, Check } from 'lucide-react';
 import { toast } from 'sonner';
 
+const DEFAULT_ZEGO_APP_ID = Number(process.env.NEXT_PUBLIC_ZEGO_APP_ID || 1560300605);
+const DEFAULT_ZEGO_SERVER_SECRET = process.env.NEXT_PUBLIC_ZEGO_SERVER_SECRET || 'e5ff9b31ef0939a1a435d8ae661aff7e';
+
 export const ActiveCallScreen: React.FC = () => {
   const { callStatus, partner, callDuration, endCall } = useCallStore();
   const { user } = useAuthStore();
@@ -16,8 +19,8 @@ export const ActiveCallScreen: React.FC = () => {
   const [appIdInput, setAppIdInput] = useState<string>('');
   const [secretInput, setSecretInput] = useState<string>('');
   const [showConfigModal, setShowConfigModal] = useState<boolean>(false);
-  const [activeAppId, setActiveAppId] = useState<number | null>(null);
-  const [activeSecret, setActiveSecret] = useState<string | null>(null);
+  const [activeAppId, setActiveAppId] = useState<number | null>(DEFAULT_ZEGO_APP_ID);
+  const [activeSecret, setActiveSecret] = useState<string | null>(DEFAULT_ZEGO_SERVER_SECRET);
 
   // Load Zego AppID and Server Secret from env or localStorage
   useEffect(() => {
@@ -27,16 +30,12 @@ export const ActiveCallScreen: React.FC = () => {
     const storedAppId = typeof window !== 'undefined' ? localStorage.getItem('ZEGO_APP_ID') : null;
     const storedSecret = typeof window !== 'undefined' ? localStorage.getItem('ZEGO_SERVER_SECRET') : null;
 
-    const finalAppId = envAppId ? Number(envAppId) : storedAppId ? Number(storedAppId) : null;
-    const finalSecret = envSecret || storedSecret || null;
+    const finalAppId = envAppId ? Number(envAppId) : storedAppId ? Number(storedAppId) : DEFAULT_ZEGO_APP_ID;
+    const finalSecret = envSecret || storedSecret || DEFAULT_ZEGO_SERVER_SECRET;
 
-    if (finalAppId && finalSecret) {
-      setActiveAppId(finalAppId);
-      setActiveSecret(finalSecret);
-      setShowConfigModal(false);
-    } else {
-      setShowConfigModal(true);
-    }
+    setActiveAppId(finalAppId);
+    setActiveSecret(finalSecret);
+    setShowConfigModal(false);
   }, [callStatus]);
 
   const handleSaveKeys = () => {
@@ -83,6 +82,14 @@ export const ActiveCallScreen: React.FC = () => {
 
     const initZego = async () => {
       try {
+        if (typeof window !== 'undefined' && !navigator.mediaDevices?.getUserMedia) {
+          if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+            toast.error('Microphone/Camera access requires HTTPS or localhost connection.');
+          } else {
+            toast.error('Microphone/Camera is blocked by your browser settings.');
+          }
+        }
+
         const { ZegoUIKitPrebuilt } = await import('@zegocloud/zego-uikit-prebuilt');
 
         const roomID = [user._id, partner._id].sort().join('_call_');
@@ -124,7 +131,7 @@ export const ActiveCallScreen: React.FC = () => {
         });
       } catch (err: any) {
         console.error('[ZEGOCloud Init Error]:', err);
-        toast.error('ZEGOCloud login failed. Please check your App ID and Secret.');
+        toast.error(err?.message || 'ZEGOCloud call initiation failed. Check microphone permissions.');
       }
     };
 

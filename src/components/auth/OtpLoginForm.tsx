@@ -17,8 +17,8 @@ export const OtpLoginForm: React.FC = () => {
 
   const { setAuth } = useAuthStore();
 
-  const handleRequestOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleRequestOtp = async (e?: React.FormEvent | React.MouseEvent) => {
+    if (e) e.preventDefault();
     if (!email || !email.includes('@')) {
       toast.error('Please enter a valid email address.');
       return;
@@ -31,7 +31,16 @@ export const OtpLoginForm: React.FC = () => {
         body: JSON.stringify({ email }),
       });
 
-      toast.success('Verification OTP code sent to your email!');
+      if (data.emailStatus && data.emailStatus.success === false) {
+        if (data.emailStatus.isSandboxRestriction) {
+          toast.warning('Resend test domain only sends to account email. Use the OTP code below.');
+        } else {
+          toast.warning(data.emailStatus.message || 'Email delivery failed. Use the OTP code below.');
+        }
+      } else {
+        toast.success('Verification OTP code sent to your email!');
+      }
+
       if (data.devOtp) {
         setDevOtpCode(data.devOtp);
       }
