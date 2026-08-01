@@ -40,8 +40,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {/* Top Header */}
           <div className="p-4 border-b border-slate-800/80 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
-                <Sparkles className="w-5 h-5" />
+              <div className="w-10 h-10 rounded-xl overflow-hidden shadow-md shadow-indigo-500/20 shrink-0">
+                <img src="/logo.png" alt="Aurora Logo" className="w-full h-full object-cover" />
               </div>
               <div>
                 <h2 className="font-bold text-white text-base leading-tight">Aurora</h2>
