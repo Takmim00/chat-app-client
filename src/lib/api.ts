@@ -1,5 +1,28 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
+let isRefreshing = false;
+let refreshPromise: Promise<string | null> | null = null;
+
+async function refreshToken(): Promise<string | null> {
+  try {
+    const res = await fetch(`${API_URL}/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.token || data.accessToken) {
+      const newToken = data.token || data.accessToken;
+      localStorage.setItem('aurora_token', newToken);
+      return newToken;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchApi(endpoint: string, options: RequestInit = {}) {
   const token = typeof window !== 'undefined' ? localStorage.getItem('aurora_token') : null;
 
@@ -12,10 +35,39 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_URL}${endpoint}`, {
+  let res = await fetch(`${API_URL}${endpoint}`, {
     ...options,
     headers,
   });
+
+  // Auto token refresh on 401
+  if (res.status === 401 && token && !endpoint.includes('/auth/')) {
+    let newToken: string | null = null;
+
+    if (!isRefreshing) {
+      isRefreshing = true;
+      refreshPromise = refreshToken().finally(() => {
+        isRefreshing = false;
+        refreshPromise = null;
+      });
+    }
+
+    newToken = await (refreshPromise || refreshToken());
+
+    if (newToken) {
+      headers['Authorization'] = `Bearer ${newToken}`;
+      res = await fetch(`${API_URL}${endpoint}`, {
+        ...options,
+        headers,
+      });
+    } else {
+      // Token refresh failed - clear and redirect to login
+      localStorage.removeItem('aurora_token');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('auth:logout'));
+      }
+    }
+  }
 
   const contentType = res.headers.get('content-type');
   let data: any = {};

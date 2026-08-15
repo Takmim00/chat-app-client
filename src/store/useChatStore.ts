@@ -11,6 +11,12 @@ interface ChatState {
   unreadCounts: Record<string, number>; // friendId/groupId -> count
   searchQuery: string;
   isSearchOpen: boolean;
+  hasMore: boolean;
+  loadingMore: boolean;
+
+  setHasMore: (hasMore: boolean) => void;
+  setLoadingMore: (loading: boolean) => void;
+  prependMessages: (messages: Message[]) => void;
 
   setActiveTab: (tab: ActiveTab) => void;
   setActiveChatPartner: (user: User | null) => void;
@@ -34,6 +40,8 @@ export const useChatStore = create<ChatState>((set) => ({
   unreadCounts: {},
   searchQuery: '',
   isSearchOpen: false,
+  hasMore: false,
+  loadingMore: false,
 
   setActiveTab: (tab) => set({ activeTab: tab }),
 
@@ -47,6 +55,15 @@ export const useChatStore = create<ChatState>((set) => ({
     }),
 
   setMessages: (messages) => set({ messages }),
+
+  setHasMore: (hasMore) => set({ hasMore }),
+  setLoadingMore: (loading) => set({ loadingMore: loading }),
+  prependMessages: (newMessages) =>
+    set((state) => {
+      const existingIds = new Set(state.messages.map((m) => m._id));
+      const unique = newMessages.filter((m) => !existingIds.has(m._id));
+      return { messages: [...unique, ...state.messages] };
+    }),
 
   addMessage: (message) =>
     set((state) => {

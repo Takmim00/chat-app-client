@@ -8,9 +8,12 @@ import { useChatStore } from '@/store/useChatStore';
 import { useCallStore, callWebRTCRef } from '@/store/useCallStore';
 import { fetchApi } from '@/lib/api';
 import { VoicePlayer } from './VoicePlayer';
+import { ForwardModal } from './ForwardModal';
+import { LinkPreview } from './LinkPreview';
 import {
   Pin,
   Reply,
+  Forward,
   Edit2,
   Trash2,
   Smile,
@@ -26,6 +29,12 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+const URL_REGEX = /https?:\/\/[^\s<>"']+/gi;
+const extractUrl = (text: string): string | null => {
+  const match = text.match(URL_REGEX);
+  return match ? match[0] : null;
+};
+
 interface MessageItemProps {
   message: Message;
 }
@@ -37,6 +46,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
   const [showActions, setShowActions] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
+  const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
 
   const senderObj = typeof message.senderId === 'object' ? message.senderId : null;
   const senderIdStr = senderObj ? senderObj._id : (message.senderId as any);
@@ -223,6 +233,11 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
               : 'bg-slate-800 text-slate-100 rounded-tl-none border border-slate-700/60'
           }`}
         >
+          {message.isForwarded && (
+            <div className="flex items-center gap-1 text-[10px] text-slate-400 mb-1 italic">
+              <Forward className="w-3 h-3" /> Forwarded{message.forwardedFrom ? ` from ${message.forwardedFrom.name}` : ''}
+            </div>
+          )}
           {message.isDeletedForEveryone ? (
             <span className="italic text-slate-400 text-xs">This message was deleted</span>
           ) : isEditing ? (
@@ -269,6 +284,9 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
 
               {/* Text Content */}
               {message.content && <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>}
+              {message.type === 'text' && message.content && extractUrl(message.content) && (
+                <LinkPreview url={extractUrl(message.content)!} isMe={isMe} />
+              )}
 
               {/* Reactions display */}
               {message.reactions && message.reactions.length > 0 && (
@@ -306,6 +324,9 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
           <button onClick={() => setReplyingTo(message)} className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700 rounded" title="Reply">
             <Reply className="w-3.5 h-3.5" />
           </button>
+          <button onClick={() => setForwardingMessage(message)} className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700 rounded" title="Forward">
+            <Forward className="w-3.5 h-3.5" />
+          </button>
           <button onClick={handleTogglePin} className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700 rounded" title="Pin">
             <Pin className="w-3.5 h-3.5" />
           </button>
@@ -324,6 +345,12 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
           )}
         </div>
       )}
+
+      <ForwardModal
+        isOpen={!!forwardingMessage}
+        message={forwardingMessage}
+        onClose={() => setForwardingMessage(null)}
+      />
     </div>
   );
 };

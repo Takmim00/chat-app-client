@@ -52,6 +52,8 @@ export interface Message {
   deliveredTo: SeenDeliveredInfo[];
   mentions?: User[];
   reactions?: Reaction[];
+  isForwarded?: boolean;
+  forwardedFrom?: User;
   createdAt: string;
   updatedAt: string;
 }

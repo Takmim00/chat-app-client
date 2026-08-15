@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useChatStore } from '@/store/useChatStore';
 import { useGroupStore } from '@/store/useGroupStore';
 import { useCallStore, callWebRTCRef } from '@/store/useCallStore';
@@ -9,7 +9,8 @@ import { fetchApi } from '@/lib/api';
 import { MessageItem } from './MessageItem';
 import { MessageInput } from './MessageInput';
 import { PinnedBanner } from './PinnedBanner';
-import { Phone, Video, Users, Info, Sparkles, ArrowLeft, ShieldAlert } from 'lucide-react';
+import { SearchMessages } from './SearchMessages';
+import { Phone, Video, Users, Info, Sparkles, ArrowLeft, ShieldAlert, Search, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ChatAreaProps {
@@ -17,10 +18,12 @@ interface ChatAreaProps {
 }
 
 export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
-  const { activeChatPartner, setActiveChatPartner, messages, setMessages, typingUsers } = useChatStore();
+  const { activeChatPartner, setActiveChatPartner, messages, setMessages, typingUsers, hasMore, loadingMore, setHasMore, setLoadingMore, prependMessages } = useChatStore();
   const { activeGroup, setActiveGroup, setIsInGroupCall } = useGroupStore();
   const { initiateCall } = useCallStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   // Join group socket room & fetch messages when active chat changes
   useEffect(() => {
@@ -29,20 +32,61 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
       try {
         if (activeChatPartner) {
           const data = await fetchApi(`/message/direct/${activeChatPartner._id}`);
-          setMessages(data.messages || []);
+          setMessages(data.messages || data || []);
+          setHasMore(data.hasMore ?? false);
         } else if (activeGroup) {
           if (socket) {
             socket.emit('group:join', { groupId: activeGroup._id });
           }
           const data = await fetchApi(`/message/group/${activeGroup._id}`);
-          setMessages(data.messages || []);
+          setMessages(data.messages || data || []);
+          setHasMore(data.hasMore ?? false);
         }
       } catch (err) {
         console.error('Failed to load chat messages', err);
       }
     };
     loadMessages();
-  }, [activeChatPartner, activeGroup, setMessages]);
+  }, [activeChatPartner, activeGroup, setMessages, setHasMore]);
+
+  const loadMoreMessages = async () => {
+    if (loadingMore || !hasMore || messages.length === 0) return;
+    setLoadingMore(true);
+    const scrollContainer = scrollContainerRef.current;
+    const prevScrollHeight = scrollContainer?.scrollHeight || 0;
+    
+    try {
+      const oldestMsg = messages[0];
+      let data;
+      if (activeChatPartner) {
+        data = await fetchApi(`/message/direct/${activeChatPartner._id}?before=${oldestMsg.createdAt}&limit=50`);
+      } else if (activeGroup) {
+        data = await fetchApi(`/message/group/${activeGroup._id}?before=${oldestMsg.createdAt}&limit=50`);
+      }
+      if (data) {
+        prependMessages(data.messages || data || []);
+        setHasMore(data.hasMore ?? false);
+        // Preserve scroll position
+        requestAnimationFrame(() => {
+          if (scrollContainer) {
+            const newScrollHeight = scrollContainer.scrollHeight;
+            scrollContainer.scrollTop = newScrollHeight - prevScrollHeight;
+          }
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load more messages:', err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const handleScroll = () => {
+    const container = scrollContainerRef.current;
+    if (container && container.scrollTop < 100 && hasMore && !loadingMore) {
+      loadMoreMessages();
+    }
+  };
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -146,6 +190,14 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
         {/* Action Controls */}
         <div className="flex items-center gap-1.5 shrink-0">
           <button
+            onClick={() => setIsSearchOpen(!isSearchOpen)}
+            className="p-2.5 md:p-3 text-slate-400 hover:text-white hover:bg-slate-800 rounded-2xl transition-colors"
+            title="Search messages"
+          >
+            <Search className="w-4 h-4" />
+          </button>
+
+          <button
             onClick={handleStartVoiceCall}
             className="p-2.5 md:p-3 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white rounded-2xl border border-emerald-500/40 transition-all flex items-center gap-2 text-xs font-semibold shadow-md"
             title="Start Voice Call"
@@ -197,11 +249,25 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
         </div>
       </div>
 
+      {isSearchOpen && <SearchMessages onClose={() => setIsSearchOpen(false)} />}
+
       {/* Pinned Messages Banner */}
       <PinnedBanner pinnedMessages={pinnedMessages} />
 
       {/* Messages Scroll Area */}
-      <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-3">
+      <div 
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto p-3 md:p-4 space-y-3"
+      >
+        {loadingMore && (
+          <div className="flex justify-center py-3">
+            <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
+          </div>
+        )}
+        {!hasMore && messages.length > 0 && (
+          <div className="text-center py-3 text-[11px] text-slate-600">Beginning of conversation</div>
+        )}
         {messages.length === 0 ? (
           <div className="h-full flex items-center justify-center text-xs text-slate-500">
             No messages yet. Send a message to start the conversation!

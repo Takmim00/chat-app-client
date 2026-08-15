@@ -23,7 +23,13 @@ export const AttachmentModal: React.FC<AttachmentModalProps> = ({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
+      const selectedFile = e.target.files[0];
+      const MAX_SIZE = 25 * 1024 * 1024; // 25MB
+      if (selectedFile.size > MAX_SIZE) {
+        toast.error('File size exceeds 25MB limit. Please choose a smaller file.');
+        return;
+      }
+      setFile(selectedFile);
     }
   };
 
