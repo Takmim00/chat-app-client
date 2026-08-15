@@ -54,6 +54,7 @@ export interface Message {
   reactions?: Reaction[];
   isForwarded?: boolean;
   forwardedFrom?: User;
+  isFailed?: boolean;
   createdAt: string;
   updatedAt: string;
 }

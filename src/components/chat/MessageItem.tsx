@@ -26,6 +26,7 @@ import {
   Phone,
   PhoneMissed,
   PhoneIncoming,
+  AlertCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -314,8 +315,10 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
             {message.isEdited && <span>(edited)</span>}
             <span>{formatTime(message.createdAt)}</span>
             {isMe && (
-              <span title={isSeenByRecipient ? 'Seen' : 'Sent'}>
-                {isSeenByRecipient ? (
+              <span title={message.isFailed ? 'Failed to send' : isSeenByRecipient ? 'Seen' : 'Sent'}>
+                {message.isFailed ? (
+                  <AlertCircle className="w-4 h-4 text-rose-500" />
+                ) : isSeenByRecipient ? (
                   <CheckCheck className="w-4 h-4 text-[#53bdeb]" />
                 ) : (
                   <Check className="w-4 h-4 text-[#8696a0]" />

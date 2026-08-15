@@ -26,6 +26,8 @@ interface ChatState {
   setMessages: (messages: Message[]) => void;
   addMessage: (message: Message) => void;
   updateMessage: (message: Message) => void;
+  markMessageFailed: (messageId: string) => void;
+  removeMessage: (messageId: string) => void;
   deleteMessage: (messageId: string, deleteForEveryone: boolean, userId: string) => void;
   setReplyingTo: (message: Message | null) => void;
   setTyping: (userId: string, isTyping: boolean) => void;
@@ -151,6 +153,16 @@ export const useChatStore = create<ChatState>((set) => ({
   updateMessage: (updatedMsg) =>
     set((state) => ({
       messages: state.messages.map((m) => (m._id === updatedMsg._id ? updatedMsg : m)),
+    })),
+
+  markMessageFailed: (messageId) =>
+    set((state) => ({
+      messages: state.messages.map((m) => (m._id === messageId ? { ...m, isFailed: true } : m)),
+    })),
+
+  removeMessage: (messageId) =>
+    set((state) => ({
+      messages: state.messages.filter((m) => m._id !== messageId),
     })),
 
   deleteMessage: (messageId, deleteForEveryone, userId) =>

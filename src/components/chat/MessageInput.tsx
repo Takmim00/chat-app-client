@@ -208,7 +208,14 @@ export const MessageInput: React.FC = () => {
       updateMessage(data.message);
     } catch (err: any) {
       console.error('Failed to persist message:', err);
-      toast.error('Failed to sync message to server.');
+      const errMsg = err.message || '';
+      if (errMsg.includes('blocked')) {
+        useChatStore.getState().removeMessage(tempId);
+        toast.error('Cannot send message. This user is blocked.');
+      } else {
+        useChatStore.getState().markMessageFailed(tempId);
+        toast.error(errMsg || 'Failed to send message.');
+      }
     }
   };
 
