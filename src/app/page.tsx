@@ -58,7 +58,7 @@ export default function Home() {
   const isChatSelected = Boolean(activeChatPartner || activeGroup);
 
   return (
-    <main className="flex flex-col md:flex-row h-[100dvh] w-screen bg-slate-950 overflow-hidden">
+    <main className="flex flex-col md:flex-row h-dvh w-screen bg-slate-950 overflow-hidden">
       {/* Mobile Top/Bottom Navigation Bar & Desktop Sidebar */}
       <Sidebar
         onOpenProfile={() => setIsProfileOpen(true)}
