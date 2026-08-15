@@ -65,53 +65,58 @@ export const FriendRequests: React.FC = () => {
   };
 
   return (
-    <div className="w-full md:w-80 bg-slate-900/90 border-r border-slate-800 flex flex-col h-full">
-      <div className="p-4 border-b border-slate-800">
-        <h3 className="text-lg font-bold text-white flex items-center gap-2">
-          <UserCheck className="w-5 h-5 text-indigo-400" /> Pending Requests
+    <div className="w-full md:w-80 bg-[#111b21] border-r border-[#222d34] flex flex-col h-full">
+      <div className="p-4 border-b border-[#222d34]">
+        <h3 className="text-lg font-bold text-[#e9edef] flex items-center gap-2">
+          <UserCheck className="w-5 h-5 text-[#00a884]" /> Pending Requests
         </h3>
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
         {isLoading ? (
-          <div className="p-8 text-center text-xs text-slate-500">Loading requests...</div>
+          <div className="p-8 text-center text-xs text-[#8696a0]">Loading requests...</div>
         ) : requests.length === 0 ? (
-          <div className="p-8 text-center text-xs text-slate-500">
-            <Clock className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+          <div className="p-8 text-center text-xs text-[#8696a0]">
+            <Clock className="w-8 h-8 text-[#8696a0] mx-auto mb-2 opacity-60" />
             No pending friend requests.
           </div>
         ) : (
           requests.map((req) => {
-            const sender = req.senderId;
+            const sender = req && typeof req.senderId === 'object' && req.senderId ? req.senderId : null;
+            if (!sender) return null;
+
+            const senderName = sender.name || 'Aurora User';
+            const senderInitial = senderName.charAt(0).toUpperCase();
+
             return (
               <div
                 key={req._id}
-                className="p-3.5 bg-slate-800/80 border border-slate-700/60 rounded-2xl space-y-3"
+                className="p-3.5 bg-[#202c33] border border-[#222d34] rounded-xl space-y-3"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-indigo-600 font-bold text-white flex items-center justify-center overflow-hidden shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-[#6b7c85] font-bold text-white flex items-center justify-center overflow-hidden shrink-0">
                     {sender.profilePic ? (
-                      <img src={sender.profilePic} alt={sender.name} className="w-full h-full object-cover" />
+                      <img src={sender.profilePic} alt={senderName} className="w-full h-full object-cover" />
                     ) : (
-                      sender.name.charAt(0).toUpperCase()
+                      senderInitial
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-semibold text-white truncate">{sender.name}</h4>
-                    <p className="text-xs text-slate-400 font-mono">ID: {sender.friendId}</p>
+                    <h4 className="text-sm font-semibold text-[#e9edef] truncate">{senderName}</h4>
+                    <p className="text-xs text-[#8696a0] font-mono">ID: {sender.friendId || 'N/A'}</p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => handleAccept(req._id)}
-                    className="flex-1 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1 shadow-md transition-all"
+                    className="flex-1 py-1.5 bg-[#00a884] hover:bg-[#008f70] text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1 shadow-sm transition-all"
                   >
                     <Check className="w-4 h-4" /> Accept
                   </button>
                   <button
                     onClick={() => handleReject(req._id)}
-                    className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-xl text-xs font-semibold flex items-center justify-center gap-1 transition-all"
+                    className="flex-1 py-1.5 bg-[#111b21] hover:bg-[#182229] text-[#e9edef] border border-[#222d34] rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition-all"
                   >
                     <X className="w-4 h-4" /> Reject
                   </button>

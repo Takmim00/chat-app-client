@@ -66,15 +66,15 @@ export const CallHistory: React.FC = () => {
   };
 
   return (
-    <div className="w-full md:w-80 bg-slate-900/90 border-r border-slate-800 flex flex-col h-full">
-      <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-        <h3 className="text-lg font-bold text-white flex items-center gap-2">
-          <Phone className="w-5 h-5 text-indigo-400" /> Call History
+    <div className="w-full md:w-80 bg-[#111b21] border-r border-[#222d34] flex flex-col h-full">
+      <div className="p-4 border-b border-[#222d34] flex items-center justify-between">
+        <h3 className="text-lg font-bold text-[#e9edef] flex items-center gap-2">
+          <Phone className="w-5 h-5 text-[#00a884]" /> Call History
         </h3>
         <div className="flex items-center gap-1">
           <button
             onClick={() => setIsRingtoneModalOpen(true)}
-            className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded-lg transition-colors"
+            className="p-1.5 text-[#8696a0] hover:text-[#00a884] hover:bg-[#202c33] rounded-lg transition-colors"
             title="Ringtone Settings"
           >
             <Bell className="w-4 h-4" />
@@ -82,7 +82,7 @@ export const CallHistory: React.FC = () => {
           <button
             onClick={fetchLogs}
             disabled={isLoading}
-            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+            className="p-1.5 text-[#8696a0] hover:text-[#e9edef] hover:bg-[#202c33] rounded-lg transition-colors"
             title="Refresh"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
@@ -97,14 +97,14 @@ export const CallHistory: React.FC = () => {
 
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
         {isLoading ? (
-          <div className="p-8 text-center text-xs text-slate-500">
-            <RefreshCw className="w-6 h-6 animate-spin text-indigo-400 mx-auto mb-2" />
+          <div className="p-8 text-center text-xs text-[#8696a0]">
+            <RefreshCw className="w-6 h-6 animate-spin text-[#00a884] mx-auto mb-2" />
             Loading call history...
           </div>
         ) : logs.length === 0 ? (
-          <div className="p-8 text-center text-xs text-slate-500">
-            <Clock className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-            <p className="font-medium text-slate-400 mb-1">No calls yet</p>
+          <div className="p-8 text-center text-xs text-[#8696a0]">
+            <Clock className="w-8 h-8 text-[#8696a0] mx-auto mb-2 opacity-60" />
+            <p className="font-medium text-[#e9edef] mb-1">No calls yet</p>
             <p>Your call history will appear here.</p>
           </div>
         ) : (
@@ -117,7 +117,7 @@ export const CallHistory: React.FC = () => {
             return (
               <div
                 key={log._id}
-                className="p-3 bg-slate-800/60 border border-slate-700/50 rounded-2xl flex items-center justify-between hover:bg-slate-800 transition-colors"
+                className="p-3 bg-[#202c33] border border-[#222d34] rounded-xl flex items-center justify-between hover:bg-[#182229] transition-colors"
               >
                 <div className="flex items-center gap-3">
                   {/* Icon */}
@@ -125,20 +125,20 @@ export const CallHistory: React.FC = () => {
                     isMissed
                       ? 'bg-rose-950/80 text-rose-400'
                       : isOutgoing
-                        ? 'bg-indigo-950/80 text-indigo-400'
-                        : 'bg-emerald-950/80 text-emerald-400'
+                        ? 'bg-emerald-950/80 text-[#00a884]'
+                        : 'bg-emerald-950/80 text-[#00a884]'
                   }`}>
                     {getCallIcon(log)}
                   </div>
 
                   {/* Info */}
                   <div>
-                    <h4 className="text-sm font-semibold text-white">
+                    <h4 className="text-sm font-semibold text-[#e9edef]">
                       {partner?.name || partner?.username || 'Voice Call'}
                     </h4>
-                    <p className="text-[11px] text-slate-400 flex items-center gap-1">
+                    <p className="text-[11px] text-[#8696a0] flex items-center gap-1">
                       {isOutgoing ? 'Outgoing' : isMissed ? 'Missed' : 'Incoming'}
-                      <span className="text-slate-600">·</span>
+                      <span>·</span>
                       {formatDate(log.createdAt)} {formatTime(log.createdAt)}
                     </p>
                   </div>
@@ -149,13 +149,13 @@ export const CallHistory: React.FC = () => {
                     isMissed
                       ? 'text-rose-400 bg-rose-950/60'
                       : log.status === 'completed'
-                        ? 'text-emerald-400 bg-emerald-950/60'
-                        : 'text-slate-400 bg-slate-800'
+                        ? 'text-[#00a884] bg-emerald-950/60'
+                        : 'text-[#8696a0] bg-[#111b21]'
                   }`}>
                     {log.status}
                   </span>
                   {duration && (
-                    <p className="text-[10px] text-slate-500 font-mono">{duration}</p>
+                    <p className="text-[10px] text-[#8696a0] font-mono">{duration}</p>
                   )}
                 </div>
               </div>
