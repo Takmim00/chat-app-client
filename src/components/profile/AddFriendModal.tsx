@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { fetchApi } from '@/lib/api';
 import { User } from '@/types';
-import { X, Search, UserPlus, Check, Loader2, Users } from 'lucide-react';
+import { X, Search, UserPlus, UserCheck, Check, Loader2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface AddFriendModalProps {
@@ -114,7 +114,8 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({ isOpen, onClose 
 
           {!isSearching &&
             results.map((targetUser) => {
-              const isSent = sentUserIds.has(targetUser._id);
+              const isAlreadyFriend = targetUser.isFriend;
+              const isRequestPending = targetUser.isPending || sentUserIds.has(targetUser._id);
               const isSending = sendingUserId === targetUser._id;
 
               return (
@@ -138,25 +139,29 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({ isOpen, onClose 
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => handleSendRequest(targetUser)}
-                    disabled={isSending || isSent}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shrink-0 ${
-                      isSent
-                        ? 'bg-[#00a884]/20 text-[#00a884] border border-[#00a884]/40'
-                        : 'bg-[#00a884] hover:bg-[#008f70] text-white shadow-sm disabled:opacity-50'
-                    }`}
-                  >
-                    {isSending ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : isSent ? (
-                      <>
-                        <Check className="w-3.5 h-3.5" /> Sent
-                      </>
-                    ) : (
-                      'Add Friend'
-                    )}
-                  </button>
+                  {isAlreadyFriend ? (
+                    <span className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-950/60 text-[#00a884] border border-[#00a884]/40 flex items-center gap-1.5 shrink-0">
+                      <UserCheck className="w-3.5 h-3.5" /> Friends
+                    </span>
+                  ) : isRequestPending ? (
+                    <span className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#2a3942] text-[#8696a0] border border-[#222d34] flex items-center gap-1.5 shrink-0">
+                      <Check className="w-3.5 h-3.5" /> Request Sent
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => handleSendRequest(targetUser)}
+                      disabled={isSending}
+                      className="px-3 py-1.5 bg-[#00a884] hover:bg-[#008f70] text-white rounded-lg text-xs font-semibold shadow-sm flex items-center gap-1.5 transition-all disabled:opacity-50 shrink-0"
+                    >
+                      {isSending ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <>
+                          <UserPlus className="w-3.5 h-3.5" /> Add Friend
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               );
             })}

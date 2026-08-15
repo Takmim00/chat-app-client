@@ -24,6 +24,7 @@ export const MessageInput: React.FC = () => {
   const recordingTimerRef = useRef<any>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
 
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeoutRef = useRef<any>(null);
 
   const { activeChatPartner, replyingTo, setReplyingTo, addMessage, updateMessage } = useChatStore();
@@ -32,8 +33,14 @@ export const MessageInput: React.FC = () => {
 
   const emojis = ['😀', '😂', '😍', '🔥', '👍', '❤️', '🎉', '🙌', '😎', '🙏'];
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setContent(e.target.value);
+
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
+    }
+
     const socket = getSocket();
     if (!socket) return;
 
@@ -144,6 +151,9 @@ export const MessageInput: React.FC = () => {
     if (!user) return;
 
     setContent('');
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
     const currentReplyTo = replyingTo;
     setReplyingTo(null);
     setShowEmojiPicker(false);
@@ -314,13 +324,14 @@ export const MessageInput: React.FC = () => {
               <Mic className="w-5 h-5" />
             </button>
 
-            <input
-              type="text"
+            <textarea
+              ref={textareaRef}
+              rows={1}
               value={content}
               onChange={handleInputChange}
               onKeyDown={handleKeyPress}
-              placeholder="Type a message"
-              className="flex-1 min-w-0 py-2.5 px-4 bg-[#2a3942] border border-transparent rounded-lg text-sm text-[#e9edef] placeholder-[#8696a0] focus:outline-none focus:border-[#00a884] transition-colors"
+              placeholder="Type a message (Shift + Enter for new line)"
+              className="flex-1 min-w-0 py-2.5 px-4 bg-[#2a3942] border border-transparent rounded-lg text-sm text-[#e9edef] placeholder-[#8696a0] focus:outline-none focus:border-[#00a884] transition-all resize-none max-h-32 leading-relaxed"
             />
 
             <button

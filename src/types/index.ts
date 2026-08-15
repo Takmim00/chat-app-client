@@ -10,6 +10,8 @@ export interface User {
   blockedUsers?: string[];
   isOnline?: boolean;
   lastSeen?: string;
+  isFriend?: boolean;
+  isPending?: boolean;
 }
 
 export interface FriendRequest {

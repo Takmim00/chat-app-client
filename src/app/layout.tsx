@@ -8,6 +8,14 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: 'Aurora Messenger | Real-Time Chat & WebRTC Voice Calls',
   description: 'Facebook Messenger & WhatsApp Web inspired real-time web application featuring 1-to-1 & Group messaging, WebRTC voice calling, and Cloudinary file sharing.',
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/icon.svg', type: 'image/svg+xml' },
+    ],
+    shortcut: '/favicon.ico',
+    apple: '/favicon.ico',
+  },
 };
 
 export default function RootLayout({

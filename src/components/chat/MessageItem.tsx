@@ -292,7 +292,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
               )}
 
               {/* Text Content */}
-              {message.content && <p className="whitespace-pre-wrap leading-relaxed text-[#e9edef]">{message.content}</p>}
+              {message.content && <p className="whitespace-pre-wrap break-words leading-relaxed text-[#e9edef]">{message.content}</p>}
               {message.type === 'text' && message.content && extractUrl(message.content) && (
                 <LinkPreview url={extractUrl(message.content)!} isMe={isMe} />
               )}
