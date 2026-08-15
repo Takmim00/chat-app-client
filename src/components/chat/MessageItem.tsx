@@ -197,11 +197,11 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
     <div
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
-      className={`group relative flex gap-3 my-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}
+      className={`group relative flex gap-2.5 my-2 items-end ${isMe ? 'flex-row-reverse' : 'flex-row'}`}
     >
       {/* Avatar */}
       {!isMe && (
-        <div className="w-8 h-8 rounded-full bg-slate-700 text-white font-bold text-xs flex items-center justify-center overflow-hidden shrink-0 mt-1">
+        <div className="w-8 h-8 rounded-full bg-slate-700 text-white font-bold text-xs flex items-center justify-center overflow-hidden shrink-0 mb-1">
           {senderPic ? (
             <img src={senderPic} alt={senderName} className="w-full h-full object-cover" />
           ) : (
@@ -211,54 +211,54 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
       )}
 
       {/* Message Bubble Container */}
-      <div className={`max-w-[85%] sm:max-w-[75%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
+      <div className={`max-w-[85%] sm:max-w-[72%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
         {!isMe && (
-          <span className="text-[11px] text-slate-400 font-medium ml-1 mb-0.5">
+          <span className="text-[11px] text-[#00a884] font-semibold ml-1 mb-0.5">
             {senderName}
           </span>
         )}
 
         {/* Pinned Indicator */}
         {message.isPinned && (
-          <div className="flex items-center gap-1 text-[10px] text-amber-400 mb-1">
+          <div className="flex items-center gap-1.5 text-[10px] font-medium text-amber-400 mb-1">
             <Pin className="w-3 h-3 fill-amber-400" /> Pinned Message
           </div>
         )}
 
         {/* Reply Preview Header */}
         {message.replyToId && (
-          <div className="p-2 mb-1 bg-slate-800/80 border-l-2 border-indigo-500 rounded-r-lg text-xs text-slate-300">
-            <p className="font-medium text-indigo-400">Replying to previous message</p>
-            <p className="truncate text-slate-400">{message.replyToId.content || '[Media file]'}</p>
+          <div className="p-2 px-3 mb-1 bg-[#111b21]/70 border-l-4 border-[#00a884] rounded-r-lg text-xs text-[#e9edef]">
+            <p className="font-semibold text-[#00a884] text-[11px]">Replying to {message.replyToId.senderId?.name || 'message'}</p>
+            <p className="truncate text-[#8696a0] text-[11px] mt-0.5">{message.replyToId.content || '[Media file]'}</p>
           </div>
         )}
 
         {/* Main Bubble */}
         <div
-          className={`p-3.5 rounded-2xl text-sm relative shadow-md ${
+          className={`p-2.5 px-3.5 rounded-lg text-sm relative shadow-sm ${
             isMe
-              ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-tr-none'
-              : 'bg-slate-800 text-slate-100 rounded-tl-none border border-slate-700/60'
+              ? 'bg-[#005c4b] text-[#e9edef] rounded-tr-none'
+              : 'bg-[#202c33] text-[#e9edef] rounded-tl-none border border-[#222d34]'
           }`}
         >
           {message.isForwarded && (
-            <div className="flex items-center gap-1 text-[10px] text-slate-400 mb-1 italic">
+            <div className="flex items-center gap-1 text-[10px] text-[#8696a0] mb-1 italic">
               <Forward className="w-3 h-3" /> Forwarded{message.forwardedFrom ? ` from ${message.forwardedFrom.name}` : ''}
             </div>
           )}
           {message.isDeletedForEveryone ? (
-            <span className="italic text-slate-400 text-xs">This message was deleted</span>
+            <span className="italic text-[#8696a0] text-xs">This message was deleted</span>
           ) : isEditing ? (
             <div className="space-y-2">
               <input
                 type="text"
                 value={editContent}
                 onChange={(e) => setEditContent(e.target.value)}
-                className="w-full p-2 bg-slate-900 border border-indigo-400 rounded text-white text-xs"
+                className="w-full p-2 bg-[#111b21] border border-[#00a884] rounded text-white text-xs"
               />
               <div className="flex justify-end gap-2 text-xs">
-                <button onClick={() => setIsEditing(false)} className="text-slate-400">Cancel</button>
-                <button onClick={handleSaveEdit} className="text-indigo-400 font-bold">Save</button>
+                <button onClick={() => setIsEditing(false)} className="text-[#8696a0]">Cancel</button>
+                <button onClick={handleSaveEdit} className="text-[#00a884] font-bold">Save</button>
               </div>
             </div>
           ) : (
@@ -267,9 +267,9 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
               {message.fileUrl && (
                 <div className="mb-2">
                   {(message.type === 'image' || message.fileUrl.match(/\.(jpeg|jpg|gif|png|webp)/i) || message.fileUrl.startsWith('data:image/')) ? (
-                    <img src={message.fileUrl} alt="attachment" className="max-w-xs rounded-xl border border-slate-700/50 shadow-md" />
+                    <img src={message.fileUrl} alt="attachment" className="max-w-xs rounded-lg border border-[#222d34] shadow-md" />
                   ) : (message.type === 'video' || message.fileUrl.match(/\.(mp4|webm|ogg)/i)) ? (
-                    <video src={message.fileUrl} controls className="max-w-xs rounded-xl shadow-md" />
+                    <video src={message.fileUrl} controls className="max-w-xs rounded-lg shadow-md" />
                   ) : (message.type === 'audio' || message.fileUrl.match(/\.(mp3|wav|ogg|m4a|webm)/i) || message.fileUrl.startsWith('data:audio/')) ? (
                     <VoicePlayer src={message.fileUrl} isMe={isMe} />
                   ) : (
@@ -277,12 +277,12 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
                       href={message.fileUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-3 bg-slate-900/60 rounded-xl flex items-center gap-3 text-xs text-indigo-300 hover:bg-slate-900 transition-colors"
+                      className="p-3 bg-[#111b21]/60 rounded-lg flex items-center gap-3 text-xs text-[#00a884] hover:bg-[#111b21] transition-colors"
                     >
-                      <FileText className="w-6 h-6 text-indigo-400 shrink-0" />
+                      <FileText className="w-6 h-6 text-[#00a884] shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold truncate text-white">{message.fileName || 'Attachment Document'}</p>
-                        <p className="text-[10px] text-slate-400">{formatFileSize(message.fileSize)}</p>
+                        <p className="font-semibold truncate text-[#e9edef]">{message.fileName || 'Attachment Document'}</p>
+                        <p className="text-[10px] text-[#8696a0]">{formatFileSize(message.fileSize)}</p>
                       </div>
                       <Download className="w-4 h-4 shrink-0" />
                     </a>
@@ -291,16 +291,16 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
               )}
 
               {/* Text Content */}
-              {message.content && <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>}
+              {message.content && <p className="whitespace-pre-wrap leading-relaxed text-[#e9edef]">{message.content}</p>}
               {message.type === 'text' && message.content && extractUrl(message.content) && (
                 <LinkPreview url={extractUrl(message.content)!} isMe={isMe} />
               )}
 
               {/* Reactions display */}
               {message.reactions && message.reactions.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-2">
+                <div className="flex flex-wrap gap-1 mt-1.5">
                   {message.reactions.map((r, idx) => (
-                    <span key={idx} className="bg-slate-900/70 px-2 py-0.5 rounded-full text-xs border border-slate-700">
+                    <span key={idx} className="bg-[#111b21] px-2 py-0.5 rounded-full text-xs border border-[#222d34]">
                       {r.emoji}
                     </span>
                   ))}
@@ -310,15 +310,15 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
           )}
 
           {/* Footer Metadata */}
-          <div className="flex items-center justify-end gap-1.5 mt-1 text-[10px] opacity-75">
+          <div className="flex items-center justify-end gap-1 mt-1 text-[11px] text-[#8696a0]">
             {message.isEdited && <span>(edited)</span>}
             <span>{formatTime(message.createdAt)}</span>
             {isMe && (
               <span title={isSeenByRecipient ? 'Seen' : 'Sent'}>
                 {isSeenByRecipient ? (
-                  <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <CheckCheck className="w-4 h-4 text-[#53bdeb]" />
                 ) : (
-                  <Check className="w-3.5 h-3.5 text-slate-400" />
+                  <Check className="w-4 h-4 text-[#8696a0]" />
                 )}
               </span>
             )}
@@ -328,28 +328,28 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
 
       {/* Floating Quick Actions */}
       {showActions && !message.isDeletedForEveryone && (
-        <div className="flex items-center gap-1 self-center bg-slate-800/90 border border-slate-700 p-1 rounded-xl shadow-lg backdrop-blur-md">
-          <button onClick={() => handleAddReaction('❤️')} className="p-1 hover:bg-slate-700 rounded text-xs">❤️</button>
-          <button onClick={() => handleAddReaction('👍')} className="p-1 hover:bg-slate-700 rounded text-xs">👍</button>
-          <button onClick={() => setReplyingTo(message)} className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700 rounded" title="Reply">
+        <div className="flex items-center gap-0.5 self-center bg-slate-900/90 border border-slate-700/80 p-1 px-1.5 rounded-full shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
+          <button onClick={() => handleAddReaction('❤️')} className="p-1 hover:bg-slate-800 rounded-full text-xs transition-transform hover:scale-125">❤️</button>
+          <button onClick={() => handleAddReaction('👍')} className="p-1 hover:bg-slate-800 rounded-full text-xs transition-transform hover:scale-125">👍</button>
+          <button onClick={() => setReplyingTo(message)} className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-full transition-colors" title="Reply">
             <Reply className="w-3.5 h-3.5" />
           </button>
-          <button onClick={() => setForwardingMessage(message)} className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700 rounded" title="Forward">
+          <button onClick={() => setForwardingMessage(message)} className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-full transition-colors" title="Forward">
             <Forward className="w-3.5 h-3.5" />
           </button>
-          <button onClick={handleTogglePin} className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700 rounded" title="Pin">
+          <button onClick={handleTogglePin} className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-full transition-colors" title="Pin">
             <Pin className="w-3.5 h-3.5" />
           </button>
           {isMe && (
-            <button onClick={() => setIsEditing(true)} className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700 rounded" title="Edit">
+            <button onClick={() => setIsEditing(true)} className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-full transition-colors" title="Edit">
               <Edit2 className="w-3.5 h-3.5" />
             </button>
           )}
-          <button onClick={handleDeleteForMe} className="p-1.5 text-rose-400 hover:bg-rose-950 rounded" title="Delete for me">
+          <button onClick={handleDeleteForMe} className="p-1.5 text-rose-400 hover:bg-rose-950/60 rounded-full transition-colors" title="Delete for me">
             <Trash2 className="w-3.5 h-3.5" />
           </button>
           {isMe && (
-            <button onClick={handleDeleteForEveryone} className="p-1.5 text-rose-400 hover:bg-rose-950 rounded text-[10px] font-bold" title="Delete for everyone">
+            <button onClick={handleDeleteForEveryone} className="px-2 py-1 text-rose-400 hover:bg-rose-950/60 rounded-full text-[10px] font-bold transition-colors" title="Delete for everyone">
               All
             </button>
           )}

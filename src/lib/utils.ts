@@ -6,12 +6,26 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatTime(dateString: string | Date): string {
+  if (!dateString) return '';
   const date = new Date(dateString);
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (isNaN(date.getTime())) return '';
+
+  try {
+    return date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } catch {
+    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
 }
 
 export function formatDate(dateString: string | Date): string {
+  if (!dateString) return '';
   const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '';
+
   const now = new Date();
 
   if (date.toDateString() === now.toDateString()) {
@@ -24,7 +38,15 @@ export function formatDate(dateString: string | Date): string {
     return 'Yesterday';
   }
 
-  return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+  try {
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  } catch {
+    return date.toLocaleDateString();
+  }
 }
 
 export function formatFileSize(bytes?: number): string {

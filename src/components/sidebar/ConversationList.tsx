@@ -111,32 +111,32 @@ export const ConversationList: React.FC = () => {
   );
 
   return (
-    <div className="w-full md:w-80 bg-slate-900/90 border-r border-slate-800 flex flex-col h-full">
+    <div className="w-full md:w-80 bg-[#111b21] border-r border-[#222d34] flex flex-col h-full">
       {/* Header Search */}
-      <div className="p-4 border-b border-slate-800">
-        <h3 className="text-lg font-bold text-white mb-3">
-          {activeTab === 'chats' ? 'Messages' : 'Groups'}
+      <div className="p-3 bg-[#111b21] border-b border-[#222d34]">
+        <h3 className="text-lg font-bold text-[#e9edef] mb-3.5 px-1">
+          {activeTab === 'chats' ? 'Chats' : 'Groups'}
         </h3>
         <div className="relative">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8696a0]" />
           <input
             type="text"
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
-            placeholder={`Search ${activeTab === 'chats' ? 'friends' : 'groups'}...`}
-            className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700/60 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            placeholder={`Search ${activeTab === 'chats' ? 'chats' : 'groups'}`}
+            className="w-full pl-10 pr-4 py-2 bg-[#202c33] border border-transparent rounded-lg text-xs text-[#e9edef] placeholder-[#8696a0] focus:outline-none focus:border-[#00a884] transition-colors"
           />
         </div>
       </div>
 
       {/* List items */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
+      <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
         {isLoading ? (
-          <div className="p-8 text-center text-xs text-slate-500">Loading conversations...</div>
+          <div className="p-8 text-center text-xs text-[#8696a0]">Loading conversations...</div>
         ) : activeTab === 'chats' ? (
           sortedFriends.length === 0 ? (
-            <div className="p-8 text-center text-xs text-slate-500">
-              <MessageSquarePlus className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+            <div className="p-8 text-center text-xs text-[#8696a0]">
+              <MessageSquarePlus className="w-8 h-8 text-[#8696a0] mx-auto mb-2" />
               No friends found. Add friends using their Friend ID!
             </div>
           ) : (
@@ -152,14 +152,14 @@ export const ConversationList: React.FC = () => {
                     setActiveGroup(null);
                     clearUnread(friend._id);
                   }}
-                  className={`p-3 rounded-2xl cursor-pointer transition-all flex items-center gap-3 ${
+                  className={`p-3 rounded-lg cursor-pointer transition-colors flex items-center gap-3 ${
                     isSelected
-                      ? 'bg-indigo-600/20 border border-indigo-500/40 text-white'
-                      : 'hover:bg-slate-800/60 text-slate-300'
+                      ? 'bg-[#2a3942] text-[#e9edef]'
+                      : 'hover:bg-[#202c33] text-[#e9edef]'
                   }`}
                 >
                   <div className="relative shrink-0">
-                    <div className="w-12 h-12 rounded-full bg-slate-700 text-white font-bold flex items-center justify-center overflow-hidden border border-slate-600">
+                    <div className="w-12 h-12 rounded-full bg-[#6b7c85] text-white font-bold flex items-center justify-center overflow-hidden shrink-0">
                       {friend.profilePic ? (
                         <img src={friend.profilePic} alt={friend.name} className="w-full h-full object-cover" />
                       ) : (
@@ -167,21 +167,21 @@ export const ConversationList: React.FC = () => {
                       )}
                     </div>
                     {friend.isOnline && (
-                      <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-500 border-2 border-slate-900 rounded-full"></span>
+                      <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-[#00a884] border-2 border-[#111b21] rounded-full"></span>
                     )}
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-semibold text-white truncate">{friend.name}</h4>
-                      <span className="text-[10px] text-slate-500 font-mono">{friend.friendId}</span>
+                      <h4 className="text-sm font-semibold text-[#e9edef] truncate">{friend.name}</h4>
+                      <span className="text-[10px] text-[#8696a0] font-mono">{friend.friendId}</span>
                     </div>
                     <div className="flex items-center justify-between mt-0.5">
-                      <p className="text-xs text-slate-400 truncate">
-                        {friend.isOnline ? 'Online' : 'Offline'}
+                      <p className="text-xs text-[#8696a0] truncate">
+                        {friend.isOnline ? <span className="text-[#00a884]">online</span> : 'offline'}
                       </p>
                       {unread > 0 && !isSelected && (
-                        <span className="w-5 h-5 rounded-full bg-indigo-500 text-white text-[10px] font-bold flex items-center justify-center shadow-md animate-pulse">
+                        <span className="w-5 h-5 rounded-full bg-[#00a884] text-[#111b21] text-[10px] font-bold flex items-center justify-center shadow-md">
                           {unread}
                         </span>
                       )}
@@ -192,8 +192,8 @@ export const ConversationList: React.FC = () => {
             })
           )
         ) : sortedGroups.length === 0 ? (
-          <div className="p-8 text-center text-xs text-slate-500">
-            <Users className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+          <div className="p-8 text-center text-xs text-[#8696a0]">
+            <Users className="w-8 h-8 text-[#8696a0] mx-auto mb-2" />
             No groups found. Create or join a group!
           </div>
         ) : (
@@ -209,13 +209,13 @@ export const ConversationList: React.FC = () => {
                   setActiveChatPartner(null);
                   clearUnread(group._id);
                 }}
-                className={`p-3 rounded-2xl cursor-pointer transition-all flex items-center gap-3 ${
+                className={`p-3 rounded-lg cursor-pointer transition-colors flex items-center gap-3 ${
                   isSelected
-                    ? 'bg-indigo-600/20 border border-indigo-500/40 text-white'
-                    : 'hover:bg-slate-800/60 text-slate-300'
+                    ? 'bg-[#2a3942] text-[#e9edef]'
+                    : 'hover:bg-[#202c33] text-[#e9edef]'
                 }`}
               >
-                <div className="w-12 h-12 rounded-2xl bg-indigo-900/60 border border-indigo-500/30 text-indigo-300 font-bold flex items-center justify-center overflow-hidden shrink-0">
+                <div className="w-12 h-12 rounded-full bg-[#6b7c85] text-white font-bold flex items-center justify-center overflow-hidden shrink-0">
                   {group.avatar ? (
                     <img src={group.avatar} alt={group.name} className="w-full h-full object-cover" />
                   ) : (
@@ -225,17 +225,17 @@ export const ConversationList: React.FC = () => {
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-semibold text-white truncate">{group.name}</h4>
-                    <span className="text-[10px] bg-slate-800 text-indigo-300 px-2 py-0.5 rounded-full font-mono">
+                    <h4 className="text-sm font-semibold text-[#e9edef] truncate">{group.name}</h4>
+                    <span className="text-[10px] bg-[#202c33] text-[#00a884] px-2 py-0.5 rounded-full font-mono">
                       {group.members.length} members
                     </span>
                   </div>
                   <div className="flex items-center justify-between mt-0.5">
-                    <p className="text-xs text-slate-400 truncate">
+                    <p className="text-xs text-[#8696a0] truncate">
                       {group.description || 'Group Conversation'}
                     </p>
                     {unread > 0 && !isSelected && (
-                      <span className="w-5 h-5 rounded-full bg-indigo-500 text-white text-[10px] font-bold flex items-center justify-center shadow-md animate-pulse">
+                      <span className="w-5 h-5 rounded-full bg-[#00a884] text-[#111b21] text-[10px] font-bold flex items-center justify-center shadow-md">
                         {unread}
                       </span>
                     )}

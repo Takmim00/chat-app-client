@@ -1,6 +1,6 @@
-'use client';
-
 import React, { useEffect, useRef, useState } from 'react';
+import { BlockConfirmModal } from '../profile/BlockConfirmModal';
+import { useAuthStore } from '@/store/useAuthStore';
 import { useChatStore } from '@/store/useChatStore';
 import { useGroupStore } from '@/store/useGroupStore';
 import { useCallStore, callWebRTCRef } from '@/store/useCallStore';
@@ -10,7 +10,7 @@ import { MessageItem } from './MessageItem';
 import { MessageInput } from './MessageInput';
 import { PinnedBanner } from './PinnedBanner';
 import { SearchMessages } from './SearchMessages';
-import { Phone, Video, Users, Info, Sparkles, ArrowLeft, ShieldAlert, Search, Loader2 } from 'lucide-react';
+import { Phone, Video, Users, Info, Sparkles, ArrowLeft, ShieldAlert, ShieldCheck, Search, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ChatAreaProps {
@@ -18,12 +18,55 @@ interface ChatAreaProps {
 }
 
 export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
+  const { user, fetchProfile } = useAuthStore();
   const { activeChatPartner, setActiveChatPartner, messages, setMessages, typingUsers, hasMore, loadingMore, setHasMore, setLoadingMore, prependMessages } = useChatStore();
   const { activeGroup, setActiveGroup, setIsInGroupCall } = useGroupStore();
   const { initiateCall } = useCallStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
+  const [isBlocking, setIsBlocking] = useState(false);
+
+  const isBlocked = Boolean(
+    activeChatPartner &&
+    user?.blockedUsers?.some((b: any) => {
+      const bId = typeof b === 'object' ? b._id : b;
+      return String(bId) === String(activeChatPartner._id);
+    })
+  );
+
+  const handleBlockConfirm = async () => {
+    if (!activeChatPartner) return;
+    setIsBlocking(true);
+    try {
+      await fetchApi('/user/block', {
+        method: 'POST',
+        body: JSON.stringify({ targetUserId: activeChatPartner._id }),
+      });
+      toast.success(`${activeChatPartner.name} blocked.`);
+      await fetchProfile();
+      setIsBlockModalOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to block user.');
+    } finally {
+      setIsBlocking(false);
+    }
+  };
+
+  const handleUnblockUser = async () => {
+    if (!activeChatPartner) return;
+    try {
+      await fetchApi('/user/unblock', {
+        method: 'POST',
+        body: JSON.stringify({ targetUserId: activeChatPartner._id }),
+      });
+      toast.success(`${activeChatPartner.name} unblocked.`);
+      await fetchProfile();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to unblock user.');
+    }
+  };
 
   // Join group socket room & fetch messages when active chat changes
   useEffect(() => {
@@ -161,20 +204,20 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
   const isTyping = activeChatPartner && typingUsers.has(activeChatPartner._id);
 
   return (
-    <div className="flex-1 bg-slate-950 flex flex-col h-full overflow-hidden w-full">
+    <div className="flex-1 bg-[#0b141a] flex flex-col h-full overflow-hidden w-full">
       {/* Top Header */}
-      <div className="p-3.5 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between z-10">
-        <div className="flex items-center gap-2.5 min-w-0">
+      <div className="p-3 px-4 bg-[#202c33] border-b border-[#222d34] flex items-center justify-between z-10">
+        <div className="flex items-center gap-3 min-w-0">
           {/* Mobile Back Button */}
           <button
             onClick={handleBackToConversations}
-            className="md:hidden p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl transition-colors"
+            className="md:hidden p-2 text-[#8696a0] hover:text-white hover:bg-[#2a3942] rounded-full transition-colors"
             title="Back"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
 
-          <div className="w-10 h-10 md:w-11 md:h-11 rounded-2xl bg-indigo-600 font-bold text-white flex items-center justify-center overflow-hidden border border-indigo-400 shrink-0">
+          <div className="w-10 h-10 rounded-full bg-[#6b7c85] font-bold text-white flex items-center justify-center overflow-hidden shrink-0">
             {activeChatPartner ? (
               activeChatPartner.profilePic ? (
                 <img src={activeChatPartner.profilePic} alt={title} className="w-full h-full object-cover" />
@@ -185,13 +228,14 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
               <Users className="w-5 h-5" />
             )}
           </div>
+
           <div className="min-w-0">
-            <h3 className="font-bold text-white text-sm md:text-base leading-tight truncate">{title}</h3>
-            <p className="text-[11px] md:text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
+            <h3 className="font-semibold text-[#e9edef] text-sm md:text-base leading-tight truncate">{title}</h3>
+            <p className="text-[11px] md:text-xs text-[#8696a0] flex items-center gap-1.5 mt-0.5">
               {activeChatPartner ? (
                 <>
-                  <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-slate-500'}`}></span>
-                  {isTyping ? <span className="text-indigo-400 font-semibold animate-pulse">Typing...</span> : isOnline ? 'Online' : 'Offline'}
+                  <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-[#00a884]' : 'bg-slate-500'}`}></span>
+                  {isTyping ? <span className="text-[#00a884] font-semibold animate-pulse">typing...</span> : isOnline ? 'online' : 'offline'}
                 </>
               ) : (
                 <span>{activeGroup?.members.length} Members</span>
@@ -201,13 +245,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
           <button
             onClick={() => setIsSearchOpen(!isSearchOpen)}
-            className="p-2.5 md:p-3 text-slate-400 hover:text-white hover:bg-slate-800 rounded-2xl transition-colors"
+            className="p-2 text-[#8696a0] hover:text-white hover:bg-[#2a3942] rounded-full transition-colors"
             title="Search messages"
           >
-            <Search className="w-4 h-4" />
+            <Search className="w-5 h-5" />
           </button>
 
           <button
@@ -230,30 +274,26 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
 
           {activeChatPartner && (
             <button
-              onClick={async () => {
-                if (!window.confirm(`Are you sure you want to block ${activeChatPartner.name}?`)) return;
-                try {
-                  await fetchApi('/user/block', {
-                    method: 'POST',
-                    body: JSON.stringify({ targetUserId: activeChatPartner._id }),
-                  });
-                  toast.success(`${activeChatPartner.name} blocked.`);
-                  setActiveChatPartner(null);
-                } catch (err: any) {
-                  toast.error(err.message || 'Failed to block user.');
+              onClick={() => {
+                if (isBlocked) {
+                  handleUnblockUser();
+                } else {
+                  setIsBlockModalOpen(true);
                 }
               }}
-              className="p-2.5 md:p-3 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-2xl transition-colors"
-              title="Block User"
+              className={`p-2 text-[#8696a0] hover:bg-[#2a3942] rounded-full transition-colors ${
+                isBlocked ? 'text-emerald-400 hover:text-emerald-300' : 'hover:text-rose-400'
+              }`}
+              title={isBlocked ? 'Unblock User' : 'Block User'}
             >
-              <ShieldAlert className="w-5 h-5" />
+              {isBlocked ? <ShieldCheck className="w-5 h-5" /> : <ShieldAlert className="w-5 h-5" />}
             </button>
           )}
 
           {activeGroup && (
             <button
               onClick={onOpenGroupSettings}
-              className="p-2.5 md:p-3 text-slate-400 hover:text-white hover:bg-slate-800 rounded-2xl transition-colors"
+              className="p-2 text-[#8696a0] hover:text-white hover:bg-[#2a3942] rounded-full transition-colors"
               title="Group Settings & Members"
             >
               <Info className="w-5 h-5" />
@@ -275,14 +315,14 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
       >
         {loadingMore && (
           <div className="flex justify-center py-3">
-            <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
+            <Loader2 className="w-5 h-5 animate-spin text-[#00a884]" />
           </div>
         )}
         {!hasMore && messages.length > 0 && (
-          <div className="text-center py-3 text-[11px] text-slate-600">Beginning of conversation</div>
+          <div className="text-center py-3 text-[11px] text-[#8696a0]">Beginning of conversation</div>
         )}
         {messages.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-xs text-slate-500">
+          <div className="h-full flex items-center justify-center text-xs text-[#8696a0]">
             No messages yet. Send a message to start the conversation!
           </div>
         ) : (
@@ -291,8 +331,29 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Bar */}
-      <MessageInput />
+      {/* Input Bar or Blocked Banner */}
+      {isBlocked ? (
+        <div className="p-3.5 px-6 bg-[#202c33] border-t border-[#222d34] flex items-center justify-between text-xs animate-in fade-in duration-200">
+          <span className="text-[#8696a0]">You blocked this contact. Tap Unblock to send a message.</span>
+          <button
+            onClick={handleUnblockUser}
+            className="px-4 py-2 bg-[#00a884] hover:bg-[#008f70] text-white font-semibold rounded-lg shadow transition-all"
+          >
+            Unblock
+          </button>
+        </div>
+      ) : (
+        <MessageInput />
+      )}
+
+      {/* Block Confirmation Modal */}
+      <BlockConfirmModal
+        isOpen={isBlockModalOpen}
+        targetUser={activeChatPartner}
+        onClose={() => setIsBlockModalOpen(false)}
+        onConfirm={handleBlockConfirm}
+        isLoading={isBlocking}
+      />
     </div>
   );
 };

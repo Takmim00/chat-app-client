@@ -12,7 +12,7 @@ interface ProfileModalProps {
 }
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) => {
-  const { user, updateUser } = useAuthStore();
+  const { user, updateUser, fetchProfile } = useAuthStore();
 
   const [name, setName] = useState(user?.name || '');
   const [username, setUsername] = useState(user?.username || '');
@@ -23,6 +23,19 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
   const [copied, setCopied] = useState(false);
 
   if (!isOpen || !user) return null;
+
+  const handleUnblockInProfile = async (targetUserId: string, name: string) => {
+    try {
+      await fetchApi('/user/unblock', {
+        method: 'POST',
+        body: JSON.stringify({ targetUserId }),
+      });
+      toast.success(`${name} unblocked.`);
+      await fetchProfile();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to unblock.');
+    }
+  };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -142,6 +155,41 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
               className="w-full py-2.5 px-3.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:ring-2 focus:ring-indigo-500 resize-none"
             />
           </div>
+
+          {/* Blocked Users List Section */}
+          {user.blockedUsers && user.blockedUsers.length > 0 && (
+            <div className="pt-3 border-t border-[#222d34] space-y-2">
+              <label className="block text-xs font-semibold text-[#8696a0] uppercase tracking-wider">
+                Blocked Contacts ({user.blockedUsers.length})
+              </label>
+              <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
+                {user.blockedUsers.map((b: any) => {
+                  const blockedObj = typeof b === 'object' ? b : { _id: b, name: 'Blocked User' };
+                  return (
+                    <div key={blockedObj._id} className="flex items-center justify-between p-2 px-3 bg-[#111b21] rounded-lg border border-[#222d34]">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-7 h-7 rounded-full bg-[#6b7c85] text-white text-xs font-bold flex items-center justify-center overflow-hidden shrink-0">
+                          {blockedObj.profilePic ? (
+                            <img src={blockedObj.profilePic} alt={blockedObj.name} className="w-full h-full object-cover" />
+                          ) : (
+                            blockedObj.name?.charAt(0).toUpperCase()
+                          )}
+                        </div>
+                        <span className="text-xs text-[#e9edef] font-medium truncate">{blockedObj.name}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleUnblockInProfile(blockedObj._id, blockedObj.name)}
+                        className="px-3 py-1 bg-[#00a884] hover:bg-[#008f70] text-white text-[11px] font-semibold rounded-lg transition-colors"
+                      >
+                        Unblock
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="flex justify-end gap-3 pt-2">
             <button
