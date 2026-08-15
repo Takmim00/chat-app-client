@@ -185,7 +185,13 @@ export const useSocket = () => {
     });
 
     return () => {
-      s.removeAllListeners();
+      // Only disconnect if user logs out or switches
+      if (!useAuthStore.getState().user) {
+        s.removeAllListeners();
+        s.disconnect();
+        socket = null;
+        currentSocketUserId = null;
+      }
     };
   }, [user?._id, token]);
 

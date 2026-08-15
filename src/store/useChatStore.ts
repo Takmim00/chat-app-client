@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Message, User, ActiveTab } from '@/types';
 import { useGroupStore } from './useGroupStore';
+import { useAuthStore } from './useAuthStore';
 
 interface ChatState {
   activeTab: ActiveTab;
@@ -103,13 +104,17 @@ export const useChatStore = create<ChatState>((set) => ({
   addMessage: (message) =>
     set((state) => {
       const senderIdStr = typeof message.senderId === 'object' ? message.senderId._id : message.senderId;
+      const currentUserId = (useAuthStore.getState() as any).user?._id;
+      const isMyMessage = Boolean(currentUserId && String(senderIdStr) === String(currentUserId));
 
       // Check if message belongs to current active chat (direct partner OR active group)
       const activeGroup = (useGroupStore.getState() as any).activeGroup;
       const isForActiveChat =
+        isMyMessage ||
         (state.activeChatPartner &&
-          (senderIdStr === state.activeChatPartner._id || message.chatId === state.activeChatPartner._id)) ||
-        (activeGroup && message.groupId === activeGroup._id);
+          (String(senderIdStr) === String(state.activeChatPartner._id) ||
+            (message.chatId && String(message.chatId) === String(state.activeChatPartner._id)))) ||
+        (activeGroup && message.groupId && String(message.groupId) === String(activeGroup._id));
 
       // If message is for another chat, increment unread count for that conversation without appending to active chat
       if (!isForActiveChat && senderIdStr) {
