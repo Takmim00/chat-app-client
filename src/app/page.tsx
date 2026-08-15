@@ -28,6 +28,7 @@ export default function Home() {
   const { activeTab, activeChatPartner } = useChatStore();
   const { activeGroup } = useGroupStore();
 
+  const [isMounted, setIsMounted] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isAddFriendOpen, setIsAddFriendOpen] = useState(false);
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
@@ -39,14 +40,15 @@ export default function Home() {
   useCallRingtone();
 
   useEffect(() => {
+    setIsMounted(true);
     fetchProfile();
   }, [fetchProfile]);
 
-  if (isLoading) {
+  if (!isMounted || isLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white">
-        <Loader2 className="w-10 h-10 animate-spin text-indigo-500 mb-4" />
-        <p className="text-sm font-medium text-slate-400">Loading Aurora Messenger...</p>
+      <div className="min-h-screen bg-[#0b141a] flex flex-col items-center justify-center text-white">
+        <Loader2 className="w-10 h-10 animate-spin text-[#00a884] mb-4" />
+        <p className="text-xs font-medium text-[#8696a0]">Loading Aurora Messenger...</p>
       </div>
     );
   }
