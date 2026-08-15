@@ -40,8 +40,9 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
     headers,
   });
 
-  // Auto token refresh on 401
-  if (res.status === 401 && token && !endpoint.includes('/auth/')) {
+  // Auto token refresh on 401 (skip for login/otp/refresh endpoints)
+  const isAuthAuthEndpoint = ['/auth/request-otp', '/auth/verify-otp', '/auth/refresh'].some((ep) => endpoint.includes(ep));
+  if (res.status === 401 && token && !isAuthAuthEndpoint) {
     let newToken: string | null = null;
 
     if (!isRefreshing) {

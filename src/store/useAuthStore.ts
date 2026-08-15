@@ -13,15 +13,31 @@ interface AuthState {
   updateUser: (updatedUser: Partial<User>) => void;
 }
 
+const getStoredUser = (): User | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = localStorage.getItem('aurora_user');
+    return stored ? JSON.parse(stored) : null;
+  } catch {
+    return null;
+  }
+};
+
+const getStoredToken = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('aurora_token');
+};
+
 export const useAuthStore = create<AuthState>((set) => ({
-  user: null,
-  token: typeof window !== 'undefined' ? localStorage.getItem('aurora_token') : null,
-  isAuthenticated: false,
-  isLoading: true,
+  user: getStoredUser(),
+  token: getStoredToken(),
+  isAuthenticated: Boolean(getStoredToken()),
+  isLoading: false,
 
   setAuth: (user, token) => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('aurora_token', token);
+      localStorage.setItem('aurora_user', JSON.stringify(user));
     }
     set({ user, token, isAuthenticated: true, isLoading: false });
   },
@@ -29,28 +45,49 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('aurora_token');
+      localStorage.removeItem('aurora_user');
     }
     set({ user: null, token: null, isAuthenticated: false, isLoading: false });
   },
 
   fetchProfile: async () => {
-    try {
-      const token = localStorage.getItem('aurora_token');
-      if (!token) {
-        set({ user: null, token: null, isAuthenticated: false, isLoading: false });
-        return;
+    const token = localStorage.getItem('aurora_token');
+    if (!token) {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('aurora_user');
       }
-      const data = await fetchApi('/auth/me');
-      set({ user: data.user, isAuthenticated: true, isLoading: false });
-    } catch (err) {
-      localStorage.removeItem('aurora_token');
       set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+      return;
+    }
+
+    try {
+      const data = await fetchApi('/auth/me');
+      if (data.user && typeof window !== 'undefined') {
+        localStorage.setItem('aurora_user', JSON.stringify(data.user));
+      }
+      set({ user: data.user, isAuthenticated: true, isLoading: false });
+    } catch (err: any) {
+      // Only logout if explicit 401 token invalid error
+      if (err.message && err.message.includes('401')) {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('aurora_token');
+          localStorage.removeItem('aurora_user');
+        }
+        set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+      } else {
+        // Keep existing user session active on minor network glitches
+        set({ isLoading: false });
+      }
     }
   },
 
   updateUser: (updatedUser) => {
-    set((state) => ({
-      user: state.user ? { ...state.user, ...updatedUser } : null,
-    }));
+    set((state) => {
+      const newUser = state.user ? { ...state.user, ...updatedUser } : null;
+      if (newUser && typeof window !== 'undefined') {
+        localStorage.setItem('aurora_user', JSON.stringify(newUser));
+      }
+      return { user: newUser };
+    });
   },
 }));
