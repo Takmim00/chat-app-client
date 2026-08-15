@@ -22,9 +22,9 @@ function createSocket(token: string): Socket {
 
   const newSocket = io(SOCKET_URL, {
     auth: { token },
-    // Use polling first — Render HTTP polling is far more stable than raw WebSocket
-    // Socket.io will transparently upgrade to WebSocket once connection is stable
-    transports: ['polling', 'websocket'],
+    // Prioritize WebSocket for instant, non-polling connection on Vercel/Render
+    transports: ['websocket', 'polling'],
+    withCredentials: true,
     reconnection: true,
     reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,
