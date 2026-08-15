@@ -49,6 +49,19 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
     loadMessages();
   }, [activeChatPartner, activeGroup, setMessages, setHasMore]);
 
+  // Automatically emit message:seen for un-seen messages from activeChatPartner
+  useEffect(() => {
+    const socket = getSocket();
+    if (activeChatPartner && socket && messages.length > 0) {
+      messages.forEach((msg) => {
+        const senderIdStr = typeof msg.senderId === 'object' ? msg.senderId._id : msg.senderId;
+        if (String(senderIdStr) === String(activeChatPartner._id)) {
+          socket.emit('message:seen', { messageId: msg._id, senderId: activeChatPartner._id });
+        }
+      });
+    }
+  }, [activeChatPartner, messages]);
+
   const loadMoreMessages = async () => {
     if (loadingMore || !hasMore || messages.length === 0) return;
     setLoadingMore(true);

@@ -88,6 +88,25 @@ export const useSocket = () => {
     s.on('message:receive', (message: any) => {
       addMessageRef.current(message);
       toast.info(`New message from ${message.senderId?.name || 'Friend'}`);
+
+      // If user is currently chatting with this sender, emit message:seen
+      const activePartner = useChatStore.getState().activeChatPartner;
+      const senderIdStr = typeof message.senderId === 'object' ? message.senderId._id : message.senderId;
+      if (activePartner && String(activePartner._id) === String(senderIdStr)) {
+        s.emit('message:seen', { messageId: message._id, senderId: senderIdStr });
+      }
+    });
+
+    s.on('message:seen', ({ messageId, seenByUserId }: any) => {
+      if (messageId && seenByUserId) {
+        useChatStore.getState().markMessageAsSeen(messageId, seenByUserId);
+      }
+    });
+
+    s.on('message:all-seen', ({ seenByUserId }: any) => {
+      if (seenByUserId && user?._id) {
+        useChatStore.getState().markAllAsSeenFromSender(user._id, seenByUserId);
+      }
     });
 
     s.on('group:message-receive', ({ message }: any) => {

@@ -18,6 +18,8 @@ interface ChatState {
   setLoadingMore: (loading: boolean) => void;
   prependMessages: (messages: Message[]) => void;
 
+  markMessageAsSeen: (messageId: string, seenByUserId: string) => void;
+  markAllAsSeenFromSender: (senderId: string, viewerId: string) => void;
   setActiveTab: (tab: ActiveTab) => void;
   setActiveChatPartner: (user: User | null) => void;
   setMessages: (messages: Message[]) => void;
@@ -64,6 +66,39 @@ export const useChatStore = create<ChatState>((set) => ({
       const unique = newMessages.filter((m) => !existingIds.has(m._id));
       return { messages: [...unique, ...state.messages] };
     }),
+
+  markMessageAsSeen: (messageId, seenByUserId) =>
+    set((state) => ({
+      messages: state.messages.map((m) => {
+        if (m._id !== messageId) return m;
+        const alreadySeen = m.seenBy?.some((s) => {
+          const uId = typeof s.userId === 'object' ? (s.userId as any)._id : s.userId;
+          return String(uId) === String(seenByUserId);
+        });
+        if (alreadySeen) return m;
+        return {
+          ...m,
+          seenBy: [...(m.seenBy || []), { userId: seenByUserId as any, timestamp: new Date().toISOString() }],
+        };
+      }),
+    })),
+
+  markAllAsSeenFromSender: (senderId, viewerId) =>
+    set((state) => ({
+      messages: state.messages.map((m) => {
+        const mSenderId = typeof m.senderId === 'object' ? (m.senderId as any)._id : m.senderId;
+        if (String(mSenderId) !== String(senderId)) return m;
+        const alreadySeen = m.seenBy?.some((s) => {
+          const uId = typeof s.userId === 'object' ? (s.userId as any)._id : s.userId;
+          return String(uId) === String(viewerId);
+        });
+        if (alreadySeen) return m;
+        return {
+          ...m,
+          seenBy: [...(m.seenBy || []), { userId: viewerId as any, timestamp: new Date().toISOString() }],
+        };
+      }),
+    })),
 
   addMessage: (message) =>
     set((state) => {

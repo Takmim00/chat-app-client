@@ -54,6 +54,14 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
   const senderName = senderObj?.name || (isMe ? user?.name : 'Member');
   const senderPic = senderObj?.profilePic || (isMe ? user?.profilePic : undefined);
 
+  const isSeenByRecipient = Boolean(
+    message.seenBy &&
+    message.seenBy.some((s) => {
+      const sId = typeof s.userId === 'object' ? (s.userId as any)._id : s.userId;
+      return sId && String(sId) !== String(user?._id);
+    })
+  );
+
   // Call back: the person to call is the OTHER person in the call message
   const handleCallBack = () => {
     // The partner is whoever is NOT me in this call message
@@ -306,11 +314,13 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
             {message.isEdited && <span>(edited)</span>}
             <span>{formatTime(message.createdAt)}</span>
             {isMe && (
-              message.seenBy && message.seenBy.length > 0 ? (
-                <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
-              ) : (
-                <Check className="w-3.5 h-3.5" />
-              )
+              <span title={isSeenByRecipient ? 'Seen' : 'Sent'}>
+                {isSeenByRecipient ? (
+                  <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
+                ) : (
+                  <Check className="w-3.5 h-3.5 text-slate-400" />
+                )}
+              </span>
             )}
           </div>
         </div>
