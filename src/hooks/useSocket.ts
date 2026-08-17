@@ -92,7 +92,7 @@ export const useSocket = () => {
       // If user is currently chatting with this sender, emit message:seen
       const activePartner = useChatStore.getState().activeChatPartner;
       const senderIdStr = typeof message.senderId === 'object' ? message.senderId._id : message.senderId;
-      if (activePartner && String(activePartner._id) === String(senderIdStr)) {
+      if (activePartner && String(activePartner._id) === String(senderIdStr) && !String(message._id).startsWith('temp-')) {
         s.emit('message:seen', { messageId: message._id, senderId: senderIdStr });
       }
     });

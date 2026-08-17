@@ -98,7 +98,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
     if (activeChatPartner && socket && messages.length > 0) {
       messages.forEach((msg) => {
         const senderIdStr = typeof msg.senderId === 'object' ? msg.senderId._id : msg.senderId;
-        if (String(senderIdStr) === String(activeChatPartner._id)) {
+        if (String(senderIdStr) === String(activeChatPartner._id) && !String(msg._id).startsWith('temp-')) {
           socket.emit('message:seen', { messageId: msg._id, senderId: activeChatPartner._id });
         }
       });
@@ -187,7 +187,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
   if (!activeChatPartner && !activeGroup) {
     return (
       <div className="flex-1 bg-slate-950 flex flex-col items-center justify-center p-8 text-center select-none">
-        <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white mb-6 shadow-2xl shadow-indigo-600/30">
+        <div className="w-20 h-20 rounded-3xl bg-linear-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white mb-6 shadow-2xl shadow-indigo-600/30">
           <Sparkles className="w-10 h-10" />
         </div>
         <h2 className="text-2xl font-bold text-white mb-2">Welcome to Aurora Messenger</h2>
