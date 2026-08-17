@@ -108,6 +108,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
         }
       } catch (err) {
         console.error('Failed to load chat messages', err);
+      } finally {
         if (isCurrent) {
           setIsMessagesLoading(false);
         }
