@@ -31,8 +31,10 @@ const getStoredToken = (): string | null => {
 export const useAuthStore = create<AuthState>((set) => ({
   user: getStoredUser(),
   token: getStoredToken(),
-  isAuthenticated: Boolean(getStoredToken()),
-  isLoading: false,
+  // Don't trust localStorage alone — start as loading if a token exists,
+  // so fetchProfile() can verify it with the server before showing the app
+  isAuthenticated: false,
+  isLoading: Boolean(getStoredToken()),
 
   setAuth: (user, token) => {
     if (typeof window !== 'undefined') {
@@ -59,6 +61,9 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ user: null, token: null, isAuthenticated: false, isLoading: false });
       return;
     }
+
+    // Show loading screen while verifying token with the server
+    set({ isLoading: true });
 
     try {
       const data = await fetchApi('/auth/me');
