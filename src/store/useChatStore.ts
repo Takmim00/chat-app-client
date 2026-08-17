@@ -7,9 +7,12 @@ interface ChatState {
   activeTab: ActiveTab;
   activeChatPartner: User | null;
   messages: Message[];
+  messagesCache: Record<string, Message[]>; // chatId/groupId -> messages cache
+  isMessagesLoading: boolean;
   replyingTo: Message | null;
   typingUsers: Set<string>; // userIds
   unreadCounts: Record<string, number>; // friendId/groupId -> count
+  friendRequestCount: number;
   searchQuery: string;
   isSearchOpen: boolean;
   hasMore: boolean;
@@ -17,13 +20,14 @@ interface ChatState {
 
   setHasMore: (hasMore: boolean) => void;
   setLoadingMore: (loading: boolean) => void;
+  setIsMessagesLoading: (loading: boolean) => void;
   prependMessages: (messages: Message[]) => void;
 
   markMessageAsSeen: (messageId: string, seenByUserId: string) => void;
   markAllAsSeenFromSender: (senderId: string, viewerId: string) => void;
   setActiveTab: (tab: ActiveTab) => void;
   setActiveChatPartner: (user: User | null) => void;
-  setMessages: (messages: Message[]) => void;
+  setMessages: (messages: Message[], conversationId?: string) => void;
   addMessage: (message: Message) => void;
   updateMessage: (message: Message) => void;
   markMessageFailed: (messageId: string) => void;
@@ -32,6 +36,7 @@ interface ChatState {
   setReplyingTo: (message: Message | null) => void;
   setTyping: (userId: string, isTyping: boolean) => void;
   clearUnread: (id: string) => void;
+  setFriendRequestCount: (count: number) => void;
   setSearchQuery: (query: string) => void;
   toggleSearchOpen: () => void;
 }
@@ -40,9 +45,12 @@ export const useChatStore = create<ChatState>((set) => ({
   activeTab: 'chats',
   activeChatPartner: null,
   messages: [],
+  messagesCache: {},
+  isMessagesLoading: false,
   replyingTo: null,
   typingUsers: new Set(),
   unreadCounts: {},
+  friendRequestCount: 0,
   searchQuery: '',
   isSearchOpen: false,
   hasMore: false,
@@ -50,16 +58,36 @@ export const useChatStore = create<ChatState>((set) => ({
 
   setActiveTab: (tab) => set({ activeTab: tab }),
 
+  setIsMessagesLoading: (isMessagesLoading) => set({ isMessagesLoading }),
+
   setActiveChatPartner: (user) =>
     set((state) => {
       const nextUnread = { ...state.unreadCounts };
+      let cachedMessages: Message[] = [];
       if (user) {
         delete nextUnread[user._id];
+        cachedMessages = state.messagesCache[user._id] || [];
       }
-      return { activeChatPartner: user, messages: [], replyingTo: null, unreadCounts: nextUnread };
+      return {
+        activeChatPartner: user,
+        messages: cachedMessages,
+        isMessagesLoading: cachedMessages.length === 0 && Boolean(user),
+        replyingTo: null,
+        unreadCounts: nextUnread,
+      };
     }),
 
-  setMessages: (messages) => set({ messages }),
+  setMessages: (messages, conversationId) =>
+    set((state) => {
+      const targetId = conversationId || state.activeChatPartner?._id;
+      return {
+        messages,
+        isMessagesLoading: false,
+        messagesCache: targetId
+          ? { ...state.messagesCache, [targetId]: messages }
+          : state.messagesCache,
+      };
+    }),
 
   setHasMore: (hasMore) => set({ hasMore }),
   setLoadingMore: (loading) => set({ loadingMore: loading }),
@@ -186,6 +214,8 @@ export const useChatStore = create<ChatState>((set) => ({
       delete next[id];
       return { unreadCounts: next };
     }),
+
+  setFriendRequestCount: (count) => set({ friendRequestCount: count }),
 
   setTyping: (userId, isTyping) =>
     set((state) => {

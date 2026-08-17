@@ -19,7 +19,20 @@ interface ChatAreaProps {
 
 export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
   const { user, fetchProfile } = useAuthStore();
-  const { activeChatPartner, setActiveChatPartner, messages, setMessages, typingUsers, hasMore, loadingMore, setHasMore, setLoadingMore, prependMessages } = useChatStore();
+  const {
+    activeChatPartner,
+    setActiveChatPartner,
+    messages,
+    setMessages,
+    isMessagesLoading,
+    setIsMessagesLoading,
+    typingUsers,
+    hasMore,
+    loadingMore,
+    setHasMore,
+    setLoadingMore,
+    prependMessages,
+  } = useChatStore();
   const { activeGroup, setActiveGroup, setIsInGroupCall } = useGroupStore();
   const { initiateCall } = useCallStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -71,26 +84,42 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
   // Join group socket room & fetch messages when active chat changes
   useEffect(() => {
     const socket = getSocket();
+    let isCurrent = true;
+
     const loadMessages = async () => {
       try {
         if (activeChatPartner) {
-          const data = await fetchApi(`/message/direct/${activeChatPartner._id}`);
-          setMessages(data.messages || data || []);
-          setHasMore(data.hasMore ?? false);
-        } else if (activeGroup) {
-          if (socket) {
-            socket.emit('group:join', { groupId: activeGroup._id });
+          const partnerId = activeChatPartner._id;
+          const data = await fetchApi(`/message/direct/${partnerId}`);
+          if (isCurrent) {
+            setMessages(data.messages || data || [], partnerId);
+            setHasMore(data.hasMore ?? false);
           }
-          const data = await fetchApi(`/message/group/${activeGroup._id}`);
-          setMessages(data.messages || data || []);
-          setHasMore(data.hasMore ?? false);
+        } else if (activeGroup) {
+          const groupId = activeGroup._id;
+          if (socket) {
+            socket.emit('group:join', { groupId });
+          }
+          const data = await fetchApi(`/message/group/${groupId}`);
+          if (isCurrent) {
+            setMessages(data.messages || data || [], groupId);
+            setHasMore(data.hasMore ?? false);
+          }
         }
       } catch (err) {
         console.error('Failed to load chat messages', err);
+        if (isCurrent) {
+          setIsMessagesLoading(false);
+        }
       }
     };
+
     loadMessages();
-  }, [activeChatPartner, activeGroup, setMessages, setHasMore]);
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [activeChatPartner?._id, activeGroup?._id, setMessages, setHasMore, setIsMessagesLoading]);
 
   // Automatically emit message:seen for un-seen messages from activeChatPartner
   useEffect(() => {
@@ -321,7 +350,12 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenGroupSettings }) => {
         {!hasMore && messages.length > 0 && (
           <div className="text-center py-3 text-[11px] text-[#8696a0]">Beginning of conversation</div>
         )}
-        {messages.length === 0 ? (
+        {isMessagesLoading && messages.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center gap-2 text-xs text-[#8696a0]">
+            <Loader2 className="w-7 h-7 animate-spin text-[#00a884]" />
+            <span>Loading conversation...</span>
+          </div>
+        ) : messages.length === 0 ? (
           <div className="h-full flex items-center justify-center text-xs text-[#8696a0]">
             No messages yet. Send a message to start the conversation!
           </div>

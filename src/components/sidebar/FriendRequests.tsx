@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { fetchApi } from '@/lib/api';
+import { useChatStore } from '@/store/useChatStore';
 import { FriendRequest } from '@/types';
 import { Check, X, UserCheck, Clock } from 'lucide-react';
 import { toast } from 'sonner';
@@ -14,7 +15,9 @@ export const FriendRequests: React.FC = () => {
     try {
       setIsLoading(true);
       const data = await fetchApi('/friend/requests');
-      setRequests(data.requests || []);
+      const reqs = data.requests || [];
+      setRequests(reqs);
+      useChatStore.getState().setFriendRequestCount(reqs.length);
     } catch (err) {
       console.error('Failed to load friend requests', err);
     } finally {
@@ -44,7 +47,11 @@ export const FriendRequests: React.FC = () => {
         body: JSON.stringify({ requestId }),
       });
       toast.success('Friend request accepted! Friend added to your chat list.');
-      setRequests((prev) => prev.filter((r) => r._id !== requestId));
+      setRequests((prev) => {
+        const updated = prev.filter((r) => r._id !== requestId);
+        useChatStore.getState().setFriendRequestCount(updated.length);
+        return updated;
+      });
       window.dispatchEvent(new Event('friends:updated'));
     } catch (err: any) {
       toast.error(err.message || 'Failed to accept request.');
@@ -58,7 +65,11 @@ export const FriendRequests: React.FC = () => {
         body: JSON.stringify({ requestId }),
       });
       toast.info('Friend request rejected.');
-      setRequests((prev) => prev.filter((r) => r._id !== requestId));
+      setRequests((prev) => {
+        const updated = prev.filter((r) => r._id !== requestId);
+        useChatStore.getState().setFriendRequestCount(updated.length);
+        return updated;
+      });
     } catch (err: any) {
       toast.error(err.message || 'Failed to reject request.');
     }

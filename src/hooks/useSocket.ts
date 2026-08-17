@@ -122,6 +122,9 @@ export const useSocket = () => {
 
     s.on('friend:request-received', () => {
       toast.info('You received a new friend request!');
+      // Increment the badge count immediately
+      const currentCount = useChatStore.getState().friendRequestCount;
+      useChatStore.getState().setFriendRequestCount(currentCount + 1);
       if (typeof window !== 'undefined') window.dispatchEvent(new Event('friend-requests:updated'));
     });
 

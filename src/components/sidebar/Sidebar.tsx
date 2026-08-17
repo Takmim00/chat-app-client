@@ -19,9 +19,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenCreateGroup,
 }) => {
   const { user, logout } = useAuthStore();
-  const { activeTab, setActiveTab } = useChatStore();
+  const { activeTab, setActiveTab, unreadCounts, friendRequestCount } = useChatStore();
   const { theme, setTheme } = useTheme();
   const [copied, setCopied] = React.useState(false);
+
+  const totalUnread = Object.values(unreadCounts).reduce((sum, n) => sum + n, 0);
 
   const copyFriendId = () => {
     if (user?.friendId) {
@@ -92,7 +94,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
               }`}
             >
               <MessageSquare className="w-5 h-5" />
-              <span>Chats</span>
+              <span className="flex-1 text-left">Chats</span>
+              {totalUnread > 0 && (
+                <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-emerald-500 text-white text-[10px] font-bold flex items-center justify-center">
+                  {totalUnread > 99 ? '99+' : totalUnread}
+                </span>
+              )}
             </button>
 
             <button
@@ -116,7 +123,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
               }`}
             >
               <UserPlus className="w-5 h-5" />
-              <span>Friend Requests</span>
+              <span className="flex-1 text-left">Friend Requests</span>
+              {friendRequestCount > 0 && (
+                <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center">
+                  {friendRequestCount > 99 ? '99+' : friendRequestCount}
+                </span>
+              )}
             </button>
 
             <button
@@ -211,11 +223,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="flex items-center justify-around p-1.5 bg-slate-950 border-t border-slate-800">
           <button
             onClick={() => setActiveTab('chats')}
-            className={`flex-1 py-2 flex flex-col items-center gap-1 rounded-xl text-[11px] font-medium transition-all ${
+            className={`flex-1 py-2 flex flex-col items-center gap-1 rounded-xl text-[11px] font-medium transition-all relative ${
               activeTab === 'chats' ? 'text-indigo-400 bg-indigo-950/60' : 'text-slate-400'
             }`}
           >
-            <MessageSquare className="w-4 h-4" />
+            <div className="relative">
+              <MessageSquare className="w-4 h-4" />
+              {totalUnread > 0 && (
+                <span className="absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full bg-emerald-500 text-white text-[9px] font-bold flex items-center justify-center">
+                  {totalUnread > 99 ? '99+' : totalUnread}
+                </span>
+              )}
+            </div>
             <span>Chats</span>
           </button>
 
@@ -231,11 +250,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           <button
             onClick={() => setActiveTab('friends')}
-            className={`flex-1 py-2 flex flex-col items-center gap-1 rounded-xl text-[11px] font-medium transition-all ${
+            className={`flex-1 py-2 flex flex-col items-center gap-1 rounded-xl text-[11px] font-medium transition-all relative ${
               activeTab === 'friends' ? 'text-indigo-400 bg-indigo-950/60' : 'text-slate-400'
             }`}
           >
-            <UserPlus className="w-4 h-4" />
+            <div className="relative">
+              <UserPlus className="w-4 h-4" />
+              {friendRequestCount > 0 && (
+                <span className="absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center">
+                  {friendRequestCount > 99 ? '99+' : friendRequestCount}
+                </span>
+              )}
+            </div>
             <span>Requests</span>
           </button>
 

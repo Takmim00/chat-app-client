@@ -7,6 +7,7 @@ import { useGroupStore } from '@/store/useGroupStore';
 import { useSocket } from '@/hooks/useSocket';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import { useCallRingtone } from '@/hooks/useCallRingtone';
+import { fetchApi } from '@/lib/api';
 import { OtpLoginForm } from '@/components/auth/OtpLoginForm';
 import { Sidebar } from '@/components/sidebar/Sidebar';
 import { ConversationList } from '@/components/sidebar/ConversationList';
@@ -43,6 +44,20 @@ export default function Home() {
     setIsMounted(true);
     fetchProfile();
   }, [fetchProfile]);
+
+  // Fetch initial friend request count for the badge
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const loadRequestCount = async () => {
+      try {
+        const data = await fetchApi('/friend/requests');
+        useChatStore.getState().setFriendRequestCount((data.requests || []).length);
+      } catch {
+        // Silently fail — badge will update when user opens the tab
+      }
+    };
+    loadRequestCount();
+  }, [isAuthenticated]);
 
   if (!isMounted || isLoading) {
     return (
